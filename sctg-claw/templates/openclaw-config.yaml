@@ -1,0 +1,37 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "claw.openclawConfigMapName" . }}
+  labels:
+    {{- include "claw.labels" . | nindent 4 }}
+{{- $config := deepCopy .Values.openclaw.config }}
+{{- $cloudflaredConfig := .Values.cloudflared.config | fromYaml }}
+{{- $ingress := get $cloudflaredConfig "ingress" }}
+{{- if and .Values.cloudflared.enabled (kindIs "slice" $ingress) (gt (len $ingress) 0) }}
+{{- $hostname := get (index $ingress 0) "hostname" }}
+{{- if $hostname }}
+{{- $gateway := default (dict) (get $config "gateway") }}
+{{- $controlUi := default (dict) (get $gateway "controlUi") }}
+{{- $allowedOrigins := default (list) (get $controlUi "allowedOrigins") }}
+{{- $origin := printf "https://%s" $hostname }}
+{{- if not (has $origin $allowedOrigins) }}
+{{- $_ := set $controlUi "allowedOrigins" (append $allowedOrigins $origin) }}
+{{- end }}
+{{- $_ := set $gateway "controlUi" $controlUi }}
+{{- $_ := set $config "gateway" $gateway }}
+{{- end }}
+{{- /* Auto-inject trustedProxies for cloudflared tunnel when enabled */}}
+{{- $gateway := default (dict) (get $config "gateway") }}
+{{- $trustedProxies := default (list) (get $gateway "trustedProxies") }}
+{{- $cidrs := default (list "10.0.0.0/8") .Values.cloudflared.trustedProxies }}
+{{- range $cidr := $cidrs }}
+{{- if not (has $cidr $trustedProxies) }}
+{{- $trustedProxies = append $trustedProxies $cidr }}
+{{- end }}
+{{- end }}
+{{- $_ := set $gateway "trustedProxies" $trustedProxies }}
+{{- $_ := set $config "gateway" $gateway }}
+{{- end }}
+data:
+  openclaw.json: |
+    {{- $config | toPrettyJson | nindent 4 }}

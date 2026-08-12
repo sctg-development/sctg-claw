@@ -1,0 +1,14 @@
+OpenClaw Gateway is available inside the cluster at:
+
+  http://{{ include "claw.fullname" . }}:{{ .Values.service.port }}
+
+The default Service is ClusterIP. Configure OpenClaw under openclaw.config in your values file. Its configuration is mounted at:
+
+  /home/node/.openclaw/openclaw.json
+
+The default configuration authenticates the Gateway with OPENCLAW_GATEWAY_TOKEN. Supply it either through an existingSecret or by setting openclaw.secret.create=true and openclaw.secret.gatewayToken.
+
+When Cloudflare Tunnel and oauth2-proxy are enabled, point their routes to the release-specific service names:
+
+  oauth2-proxy upstream: http://{{ include "claw.fullname" . }}:{{ .Values.service.port }}
+  cloudflared service:  http://{{ .Release.Name }}-oauth2-proxy:80

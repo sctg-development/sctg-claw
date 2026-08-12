@@ -1,0 +1,190 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "properties": {
+        "replicaCount": {
+            "type": "integer",
+            "default": 1
+        },
+        "image": {
+            "type": "object",
+            "properties": {
+                "repository": {
+                    "type": "string"
+                },
+                "tag": {
+                    "type": "string"
+                },
+                "pullPolicy": {
+                    "type": "string"
+                }
+            }
+        },
+        "imagePullSecrets": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "name": { "type": "string" }
+                }
+            }
+        },
+        "service": {
+            "type": "object",
+            "properties": {
+                "type": {
+                    "type": "string"
+                },
+                "port": {
+                    "type": "integer",
+                    "default": 18789
+                }
+            }
+        },
+        "openclaw": {
+            "type": "object",
+            "properties": {
+                "existingSecret": {
+                    "type": "string"
+                },
+                "secret": {
+                    "type": "object",
+                    "properties": {
+                        "create": { "type": "boolean" },
+                        "name": { "type": "string" },
+                        "gatewayToken": {
+                            "type": "string",
+                            "description": "Required only when openclaw.config.gateway.auth.mode is token; mutually exclusive with trusted-proxy auth."
+                        },
+                        "mistralApiKeys": { "type": "string" },
+                        "cohereApiKeys": { "type": "string" },
+                        "poolsideApiKeys": { "type": "string" },
+                        "exaApiKeys": { "type": "string" },
+                        "firecrawlApiKeys": { "type": "string" }
+                    }
+                },
+                "config": {
+                    "type": "object",
+                    "description": "Freeform, rendered as-is into /home/node/.openclaw/openclaw.json. See the OpenClaw configuration reference for supported keys (gateway, agents, models, etc.).",
+                    "additionalProperties": true
+                }
+            }
+        },
+        "persistence": {
+            "type": "object",
+            "properties": {
+                "enabled": { "type": "boolean" },
+                "mountPath": { "type": "string" },
+                "size": { "type": "string" },
+                "storageClass": { "type": "string" },
+                "accessModes": {
+                    "type": "array",
+                    "items": { "type": "string" }
+                }
+            }
+        },
+        "resources": {
+            "type": "object",
+            "additionalProperties": true
+        },
+        "livenessProbe": {
+            "type": "object",
+            "properties": {
+                "enabled": { "type": "boolean" },
+                "initialDelaySeconds": { "type": "integer" },
+                "periodSeconds": { "type": "integer" },
+                "timeoutSeconds": { "type": "integer" }
+            }
+        },
+        "readinessProbe": {
+            "type": "object",
+            "properties": {
+                "enabled": { "type": "boolean" },
+                "initialDelaySeconds": { "type": "integer" },
+                "periodSeconds": { "type": "integer" },
+                "timeoutSeconds": { "type": "integer" }
+            }
+        },
+        "cloudflared": {
+            "type": "object",
+            "description": "Optional cloudflared tunnel dependency (condition: cloudflared.enabled). Full key set is defined by the vendored cloudflared subchart; only the keys this parent chart reads directly are listed here.",
+            "properties": {
+                "enabled": { "type": "boolean" },
+                "TunnelID": { "type": "string" },
+                "credentials": {
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "cert": { "type": "string" },
+                "config": {
+                    "type": "string",
+                    "description": "cloudflared config.yaml content. ingress[0].hostname is read back to populate gateway.controlUi.allowedOrigins."
+                },
+                "trustedProxies": {
+                    "type": "array",
+                    "items": { "type": "string" },
+                    "description": "CIDRs merged into openclaw.config.gateway.trustedProxies when cloudflared.enabled is true."
+                }
+            },
+            "additionalProperties": true
+        },
+        "serviceAccount": {
+            "type": "object",
+            "properties": {
+                "create": { "type": "boolean" },
+                "name": { "type": "string" }
+            }
+        },
+        "podAnnotations": {
+            "type": "object",
+            "additionalProperties": true
+        },
+        "podLabels": {
+            "type": "object",
+            "additionalProperties": true
+        },
+        "podSecurityContext": {
+            "type": "object",
+            "additionalProperties": true
+        },
+        "containerSecurityContext": {
+            "type": "object",
+            "additionalProperties": true
+        },
+        "nodeSelector": {
+            "type": "object",
+            "additionalProperties": true
+        },
+        "tolerations": {
+            "type": "array",
+            "items": { "type": "object" }
+        },
+        "affinity": {
+            "type": "object",
+            "additionalProperties": true
+        },
+        "oauth2-proxy": {
+            "type": "object",
+            "description": "Optional oauth2-proxy dependency (condition: oauth2-proxy.enabled). Full key set is defined by the vendored oauth2-proxy subchart; only the keys this parent chart's default values.yaml sets are listed here.",
+            "properties": {
+                "enabled": { "type": "boolean" },
+                "ingress": {
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "config": {
+                    "type": "object",
+                    "properties": {
+                        "clientID": { "type": "string" },
+                        "clientSecret": { "type": "string" },
+                        "cookieSecret": { "type": "string" },
+                        "cookieName": { "type": "string" },
+                        "configFile": { "type": "string" }
+                    },
+                    "additionalProperties": true
+                }
+            },
+            "additionalProperties": true
+        }
+    }
+}
