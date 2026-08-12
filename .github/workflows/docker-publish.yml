@@ -6,11 +6,13 @@ on:
     paths:
       - Dockerfile
       - openclaw
+      - .github/workflows/docker-publish.yml  
   pull_request:
     branches: [ main ]
     paths:
       - Dockerfile
       - openclaw
+      - .github/workflows/docker-publish.yml
 
 env:
   REGISTRY: docker.io
