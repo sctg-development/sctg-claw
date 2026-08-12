@@ -8,7 +8,7 @@ A personal, self-hosted [OpenClaw](https://github.com/openclaw/openclaw) gateway
 Browser / client
       |
       v
-Cloudflare Tunnel (https://claw.ai-ml.pp.ua)
+Cloudflare Tunnel (https://claw.example.org)
       |
       v
 oauth2-proxy  (GitHub OAuth, allow-listed to 2 accounts)
