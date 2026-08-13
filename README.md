@@ -50,6 +50,13 @@ Two features this deployment relies on — trusted-proxy `deviceAutoApprove` and
 
 The `Dockerfile` therefore builds the image directly from that pinned submodule commit using OpenClaw's own multi-stage build (copied verbatim from `openclaw/Dockerfile`, plus this repo's provider/plugin additions layered on top). This is an explicit trade-off: the deployment runs **unreleased** OpenClaw code. Advancing the submodule pin (`git submodule update`) should be a deliberate, reviewed action, not routine maintenance.
 
+### Submodule branches
+
+The submodule (`git@github.com:TEA-ching/openclaw.git`) tracks a `sctg-claw` branch, not upstream `main` directly:
+
+- **`provider-rotate`** — a fix for mistral/cohere/exa/firecrawl: each provider's manifest only recognized the singular `<PROVIDER>_API_KEY` env var, so a key pool configured only via `<PROVIDER>_API_KEYS` (this chart's default) never activated the provider, and none of the four actually rotated across a configured pool on rate limits even when both vars were set. Proposed upstream; see the branch for the PR.
+- **`sctg-claw`** — upstream `main` merged with `provider-rotate`. This is the branch the `Dockerfile`/CI actually build. Once `provider-rotate` lands upstream, `sctg-claw` collapses back to a plain tracking branch with no commits of its own.
+
 ## Building the image
 
 ```bash

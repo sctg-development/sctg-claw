@@ -3,6 +3,15 @@
 # commit (config schema, gateway features) instead of drifting from whatever
 # release Docker Hub's `latest` tag happens to point at.
 #
+# The submodule tracks the `sctg-claw` branch on our fork
+# (git@github.com:TEA-ching/openclaw.git), not upstream `main` directly:
+# `sctg-claw` = upstream `main` + our own provider-rotate fixes (mistral,
+# cohere, exa, firecrawl API-key-pool activation and rotation), rebased on
+# top as upstream's own commits get pulled in via `git submodule update
+# --remote`. Those fixes are also proposed upstream on the `provider-rotate`
+# branch of the same fork; once merged there, `sctg-claw` drops back to a
+# plain tracking branch with no local-only commits ahead of upstream.
+#
 # Build context MUST be the `openclaw/` submodule directory, not this repo's
 # root, because the upstream stages below (copied from openclaw/Dockerfile)
 # `COPY . .` the OpenClaw source tree itself. `docker build .` (or an IDE's

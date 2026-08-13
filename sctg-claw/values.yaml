@@ -23,7 +23,7 @@ replicaCount: 1
 
 image:
   repository: sctg/claw
-  tag: "latest"
+  tag: "2026.8.1"
   pullPolicy: IfNotPresent
 
 imagePullSecrets: []
