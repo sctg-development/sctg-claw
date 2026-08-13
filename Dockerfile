@@ -40,9 +40,12 @@
 #
 # Build stages use full bookworm; the runtime image is always bookworm-slim.
 # sctg-claw: bundle our 5 requested providers by default (mistral, cohere,
-# poolside, exa, firecrawl) plus parallel. poolside has no bundled extension
-# in this OpenClaw revision, so it's installed post-build below instead.
-ARG OPENCLAW_EXTENSIONS="cohere,exa,firecrawl,mistral,parallel"
+# poolside, exa, firecrawl) plus parallel. poolside is vendored under
+# extensions/poolside on the sctg-claw branch (its own ClawHub package ships
+# only a built dist/index.js from a private source repo, MIT-licensed; see
+# that directory's README), patched for API-key rotation the same as the
+# other 4, and bundled here like any other extension.
+ARG OPENCLAW_EXTENSIONS="cohere,exa,firecrawl,mistral,parallel,poolside"
 ARG OPENCLAW_BUNDLED_PLUGIN_DIR=extensions
 ARG OPENCLAW_DOCKER_BUILD_NODE_OPTIONS="--max-old-space-size=8192"
 ARG OPENCLAW_DOCKER_BUILD_TSDOWN_MAX_OLD_SPACE_MB=""
@@ -381,10 +384,6 @@ RUN --mount=type=cache,id=openclaw-bookworm-apt-cache,target=/var/cache/apt,shar
 # sctg-claw additions start here (everything above is upstream openclaw/Dockerfile)
 # ---------------------------------------------------------------------------
 
-# poolside has no bundled extensions/poolside directory in this OpenClaw
-# revision (unlike cohere/exa/firecrawl/mistral/parallel above), so it can't
-# go through OPENCLAW_EXTENSIONS. Install it the same way as the 3 extra CLI
-# tools below: as a build-time step against the built runtime image.
 ARG GOGCLI_VERSION=0.35.0
 ARG GOPLACES_VERSION=0.4.4
 ARG WACLI_VERSION=0.16.0
@@ -427,12 +426,6 @@ ENV NODE_ENV=production
 # The node:24-bookworm image includes a 'node' user (uid 1000)
 # This reduces the attack surface by preventing container escape via root privileges
 USER node
-
-# poolside isn't a bundled extension (see the gogcli/goplaces/wacli block
-# above) — install it from ClawHub against the built runtime, same as before
-# this Dockerfile switched from FROM openclaw/openclaw:latest to a from-source
-# build.
-RUN openclaw plugins install clawhub:@poolside/openclaw-provider
 
 # Start gateway server with default config.
 # Binds to loopback (127.0.0.1) by default for security.

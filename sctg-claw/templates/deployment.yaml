@@ -42,21 +42,6 @@ spec:
       affinity:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- if .Values.persistence.enabled }}
-      initContainers:
-        - name: install-bundled-extensions
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
-          command:
-            - sh
-            - -ec
-            - mkdir -p /data/extensions && rm -rf /data/extensions/poolside && cp -a /home/node/.openclaw/extensions/poolside /data/extensions/poolside
-          securityContext:
-            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
-          volumeMounts:
-            - name: data
-              mountPath: /data
-      {{- end }}
       containers:
         - name: gateway
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"

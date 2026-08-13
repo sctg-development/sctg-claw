@@ -38,7 +38,7 @@ The image bundles 5 model/tool providers, each configured with a comma-separated
 
 - **Mistral**
 - **Cohere**
-- **Poolside** (installed post-build from ClawHub — it has no bundled `extensions/poolside` source directory in this OpenClaw revision, unlike the other four)
+- **Poolside** — vendored under `extensions/poolside` on the `sctg-claw` branch, not part of upstream OpenClaw. Poolside's own `@poolside/openclaw-provider` ClawHub package (MIT-licensed) ships only a built `dist/index.js`; its source repo is private. That build output is checked in as pseudo-source and patched for API-key rotation the same way as the other providers — see `openclaw/extensions/poolside/README.md`.
 - **Exa** (web search)
 - **Firecrawl** (web scraping)
 
@@ -55,7 +55,7 @@ The `Dockerfile` therefore builds the image directly from that pinned submodule 
 The submodule (`git@github.com:TEA-ching/openclaw.git`) tracks a `sctg-claw` branch, not upstream `main` directly:
 
 - **`provider-rotate`** — a fix for mistral/cohere/exa/firecrawl: each provider's manifest only recognized the singular `<PROVIDER>_API_KEY` env var, so a key pool configured only via `<PROVIDER>_API_KEYS` (this chart's default) never activated the provider, and none of the four actually rotated across a configured pool on rate limits even when both vars were set. Proposed upstream; see the branch for the PR.
-- **`sctg-claw`** — upstream `main` merged with `provider-rotate`. This is the branch the `Dockerfile`/CI actually build. Once `provider-rotate` lands upstream, `sctg-claw` collapses back to a plain tracking branch with no commits of its own.
+- **`sctg-claw`** — upstream `main` merged with `provider-rotate`, plus the vendored Poolside provider (`extensions/poolside`, see [Providers](#providers)) patched the same way. This is the branch the `Dockerfile`/CI actually build. Poolside isn't part of upstream OpenClaw, so it stays `sctg-claw`-only; once `provider-rotate` lands upstream, `sctg-claw` otherwise collapses back to upstream `main` plus just that one addition.
 
 ## Building the image
 
