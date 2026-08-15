@@ -45,7 +45,7 @@
 # only a built dist/index.js from a private source repo, MIT-licensed; see
 # that directory's README), patched for API-key rotation the same as the
 # other 4, and bundled here like any other extension.
-ARG OPENCLAW_EXTENSIONS="cohere,exa,firecrawl,mistral,parallel,poolside"
+ARG OPENCLAW_EXTENSIONS="cohere,exa,firecrawl,mistral,parallel,poolside,whatsapp,signal"
 ARG OPENCLAW_BUNDLED_PLUGIN_DIR=extensions
 ARG OPENCLAW_DOCKER_BUILD_NODE_OPTIONS="--max-old-space-size=8192"
 ARG OPENCLAW_DOCKER_BUILD_TSDOWN_MAX_OLD_SPACE_MB=""

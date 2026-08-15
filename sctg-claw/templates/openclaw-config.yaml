@@ -35,3 +35,9 @@ metadata:
 data:
   openclaw.json: |
     {{- $config | toPrettyJson | nindent 4 }}
+{{- with .Values.openclaw.workspaceFiles }}
+{{- range $filename, $content := . }}
+  {{ $filename }}: |
+    {{- $content | nindent 4 }}
+{{- end }}
+{{- end }}

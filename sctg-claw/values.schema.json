@@ -67,6 +67,29 @@
                     "type": "object",
                     "description": "Freeform, rendered as-is into /home/node/.openclaw/openclaw.json. See the OpenClaw configuration reference for supported keys (gateway, agents, models, etc.).",
                     "additionalProperties": true
+                },
+                "workspaceFiles": {
+                    "type": "object",
+                    "description": "Workspace bootstrap files (AGENTS.md, SOUL.md, IDENTITY.md, USER.md) pre-seeded into /home/node/.openclaw/workspace/ by the init container on first boot. Existing files in the PVC are never overwritten (seed-if-missing). To reseed after changing values, delete the file from the PVC and restart the pod.",
+                    "additionalProperties": {
+                        "type": "string",
+                        "description": "Markdown content for the named workspace file."
+                    }
+                },
+                "initContainer": {
+                    "type": "object",
+                    "description": "Settings for the workspace-bootstrapper init container.",
+                    "properties": {
+                        "image": {
+                            "type": "string",
+                            "description": "Container image for the init container (default: busybox:1.37).",
+                            "default": "busybox:1.37"
+                        },
+                        "resources": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
                 }
             }
         },

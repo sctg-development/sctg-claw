@@ -42,6 +42,32 @@ spec:
       affinity:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- if .Values.openclaw.workspaceFiles }}
+      initContainers:
+        - name: init-workspace
+          image: {{ .Values.openclaw.initContainer.image | default "busybox:1.37" }}
+          imagePullPolicy: IfNotPresent
+          command:
+            - sh
+            - -c
+            - |
+              set -e
+              mkdir -p {{ $.Values.persistence.mountPath }}/workspace
+              {{- range $filename, $content := .Values.openclaw.workspaceFiles }}
+              [ -f {{ $.Values.persistence.mountPath }}/workspace/{{ $filename }} ] || cp /openclaw-config/{{ $filename }} {{ $.Values.persistence.mountPath }}/workspace/{{ $filename }}
+              {{- end }}
+          securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
+          resources:
+            {{- toYaml .Values.openclaw.initContainer.resources | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: {{ .Values.persistence.mountPath }}
+            - name: openclaw-config
+              mountPath: /openclaw-config
+              readOnly: true
+      {{- end }}
       containers:
         - name: gateway
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
@@ -52,7 +78,7 @@ spec:
           {{- if include "claw.openclawSecretName" . }}
           env:
             - name: OPENCLAW_DEBUG
-              value: "1"
+              value: "0"
           envFrom:
             - secretRef:
                 name: {{ include "claw.openclawSecretName" . }}
@@ -61,21 +87,13 @@ spec:
             {{- toYaml .Values.containerSecurityContext | nindent 12 }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
-          {{- if .Values.persistence.enabled }}
           volumeMounts:
             - name: data
               mountPath: {{ .Values.persistence.mountPath }}
-            - name: config
-              mountPath: /home/node/.openclaw/openclaw.json
+            - name: openclaw-config-subpath
+              mountPath: {{ .Values.persistence.mountPath }}/openclaw.json
               subPath: openclaw.json
               readOnly: true
-          {{- else }}
-          volumeMounts:
-            - name: config
-              mountPath: /home/node/.openclaw/openclaw.json
-              subPath: openclaw.json
-              readOnly: true
-          {{- end }}
           {{- if .Values.livenessProbe.enabled }}
           livenessProbe:
             httpGet:
@@ -89,24 +107,27 @@ spec:
           {{- if .Values.readinessProbe.enabled }}
           readinessProbe:
             httpGet:
-              path: /healthz
+              path: /readyz
               port: gateway
               scheme: HTTP
             initialDelaySeconds: {{ .Values.readinessProbe.initialDelaySeconds }}
             periodSeconds: {{ .Values.readinessProbe.periodSeconds }}
             timeoutSeconds: {{ .Values.readinessProbe.timeoutSeconds }}
           {{- end }}
-      {{- if .Values.persistence.enabled }}
       volumes:
         - name: data
+          {{- if .Values.persistence.enabled }}
           persistentVolumeClaim:
             claimName: {{ include "claw.fullname" . }}
-        - name: config
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - name: openclaw-config
           configMap:
             name: {{ include "claw.openclawConfigMapName" . }}
-      {{- else }}
-      volumes:
-        - name: config
+        - name: openclaw-config-subpath
           configMap:
             name: {{ include "claw.openclawConfigMapName" . }}
-      {{- end }}
+            items:
+              - key: openclaw.json
+                path: openclaw.json
