@@ -22,8 +22,8 @@
 replicaCount: 1
 
 strategy:
-  type: recreate
-  
+  type: Recreate
+
 image:
   repository: sctg/claw
   tag: "2026.8.1"
