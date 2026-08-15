@@ -2,7 +2,7 @@ apiVersion: v2
 name: claw
 description: "Helm chart to deploy OpenClaw Gateway"
 type: application
-version: 0.2.0
+version: 0.3.0
 appVersion: "2026.8.1"
 
 dependencies:

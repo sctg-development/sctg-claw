@@ -21,6 +21,9 @@
 
 replicaCount: 1
 
+strategy:
+  type: recreate
+  
 image:
   repository: sctg/claw
   tag: "2026.8.1"
@@ -395,6 +398,7 @@ cloudflared:
   # Override to match your cluster's pod/service CIDR.
   trustedProxies:
   - "10.0.0.0/8"
+  - "172.0.0.0/8"
 
 # Service account creation
 serviceAccount:

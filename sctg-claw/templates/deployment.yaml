@@ -23,6 +23,8 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
     spec:
+      strategy:
+        type: {{ .Values.strategy.type }}
       serviceAccountName: {{ if .Values.serviceAccount.create }}{{ default (include "claw.fullname" .) .Values.serviceAccount.name }}{{ else }}{{ required "serviceAccount.name must be set when serviceAccount.create is false" .Values.serviceAccount.name }}{{ end }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
@@ -70,6 +72,10 @@ spec:
       {{- end }}
       containers:
         - name: gateway
+          lifecycle:
+            preStop:
+              exec:
+                command: ["/bin/sh", "-c", "/usr/local/bin/openclaw gateway stop"]
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
