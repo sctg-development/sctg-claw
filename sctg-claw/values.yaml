@@ -306,6 +306,30 @@ persistence:
   accessModes:
   - ReadWriteOnce
 
+# Optional bbernhard/signal-cli-rest-api sidecar for the Signal channel
+# (channels.signal.transport.kind: "container"). signal-cli owns its own
+# session/registration data under /home/.local/share/signal-cli, entirely
+# separate from the main "data" PVC above, so it gets its own PVC here.
+signalCli:
+  enabled: false
+  image:
+    repository: bbernhard/signal-cli-rest-api
+    tag: latest
+  port: 8080
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  persistence:
+    enabled: true
+    size: 1Gi
+    storageClass: ""
+    accessModes:
+    - ReadWriteOnce
+
 # Pod resource configuration
 resources:
   requests:

@@ -120,6 +120,21 @@ spec:
             periodSeconds: {{ .Values.readinessProbe.periodSeconds }}
             timeoutSeconds: {{ .Values.readinessProbe.timeoutSeconds }}
           {{- end }}
+        {{- if .Values.signalCli.enabled }}
+        - name: signal-cli
+          image: "{{ .Values.signalCli.image.repository }}:{{ .Values.signalCli.image.tag }}"
+          env:
+            - name: MODE
+              value: "json-rpc"
+          ports:
+            - containerPort: {{ .Values.signalCli.port }}
+              name: signal-cli
+          resources:
+            {{- toYaml .Values.signalCli.resources | nindent 12 }}
+          volumeMounts:
+            - name: signal-cli-data
+              mountPath: /home/.local/share/signal-cli
+        {{- end }}
       volumes:
         - name: data
           {{- if .Values.persistence.enabled }}
@@ -137,3 +152,12 @@ spec:
             items:
               - key: openclaw.json
                 path: openclaw.json
+        {{- if .Values.signalCli.enabled }}
+        - name: signal-cli-data
+          {{- if .Values.signalCli.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "claw.fullname" . }}-signal-cli
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        {{- end }}

@@ -1,0 +1,17 @@
+{{- if and .Values.signalCli.enabled .Values.signalCli.persistence.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "claw.fullname" . }}-signal-cli
+  labels:
+    {{- include "claw.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    {{- toYaml .Values.signalCli.persistence.accessModes | nindent 4 }}
+  resources:
+    requests:
+      storage: {{ .Values.signalCli.persistence.size }}
+  {{- with .Values.signalCli.persistence.storageClass }}
+  storageClassName: {{ . }}
+  {{- end }}
+{{- end }}
