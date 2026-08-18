@@ -1,0 +1,27 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "claw.fullname" . }}-mobile-auth-broker
+  labels:
+    {{- include "claw.labels" . | nindent 4 }}
+    app.kubernetes.io/component: mobile-auth-broker
+  {{- with .Values.mobileAuthBroker.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- if .Values.mobileAuthBroker.ingress.tls }}
+  tls:
+    {{- toYaml .Values.mobileAuthBroker.ingress.tls | nindent 4 }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.mobileAuthBroker.hostname | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "claw.fullname" . }}-mobile-auth-broker
+                port:
+                  number: {{ .Values.mobileAuthBroker.service.port }}

@@ -1,0 +1,27 @@
+{{- /*
+This template provides a ConfigMap for cloudflared configuration when both
+cloudflared and mobileAuthBroker are enabled. It adds the mobile hostname
+to the existing cloudflared ingress rules.
+*/ -}}
+{{- if and .Values.cloudflared.enabled .Values.mobileAuthBroker.enabled -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "claw.fullname" . }}-cloudflared-config
+  labels:
+    {{- include "claw.labels" . | nindent 4 }}
+    app.kubernetes.io/component: cloudflared
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+data:
+  config.yaml: |
+    tunnel: {{ .Values.cloudflared.TunnelID | default "openclaw" }}
+    credentials-file: /etc/cloudflared/creds/credentials.json
+    ingress:
+      - hostname: {{ index .Values.cloudflared.config "ingress.0.hostname" | default "openclaw.example.com" }}
+        service: http://{{ .Release.Name }}-oauth2-proxy:80
+      - hostname: {{ .Values.mobileAuthBroker.hostname }}
+        service: http://{{ .Release.Name }}-mobile-auth-broker:{{ .Values.mobileAuthBroker.service.port }}
+      - service: http_status:404
+{{- end -}}

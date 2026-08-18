@@ -1,0 +1,37 @@
+# Binaries
+bin/
+*.exe
+
+# Go
+/go
+*.mod
+*.sum
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Test
+coverage.txt
+coverage.out
+coverage.html
+
+# Docker
+.docker/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Build artifacts
+mobile-auth-broker

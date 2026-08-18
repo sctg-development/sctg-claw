@@ -51,3 +51,24 @@ Usage: {{ include "claw.providerApiKeyEnv" (dict "envName" "MISTRAL" "raw" .) }}
 {{ .envName }}_API_KEY: {{ first $parts | quote }}
 {{- end -}}
 {{- end -}}
+
+{{- /* Mobile Auth Broker helpers */ -}}
+{{- define "claw.mobileAuthBrokerSecretName" -}}
+{{- if .Values.mobileAuthBroker.existingSecret }}
+{{- .Values.mobileAuthBroker.existingSecret }}
+{{- else }}
+{{- default (printf "%s-mobile-auth-broker" (include "claw.fullname" .)) .Values.mobileAuthBroker.secret.name }}
+{{- end }}
+{{- end -}}
+
+{{- define "claw.mobileAuthBrokerConfigMapName" -}}
+{{- default (printf "%s-mobile-auth-broker-config" (include "claw.fullname" .)) .Values.mobileAuthBroker.configMap.name }}
+{{- end -}}
+
+{{- define "claw.mobileAuthBrokerAllowedEmailsConfigMapName" -}}
+{{- default (printf "%s-mobile-auth-broker-allowed-emails" (include "claw.fullname" .)) .Values.mobileAuthBroker.allowedEmailsConfigMap.name }}
+{{- end -}}
+
+{{- define "claw.mobileAuthBrokerPVCName" -}}
+{{- default (printf "%s-mobile-auth-broker" (include "claw.fullname" .)) .Values.mobileAuthBroker.persistence.existingClaim }}
+{{- end -}}

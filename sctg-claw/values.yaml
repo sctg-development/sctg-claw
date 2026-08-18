@@ -470,3 +470,129 @@ oauth2-proxy:
       pass_basic_auth = true
       pass_user_headers = true
       pass_host_header = true
+
+# Mobile Authentication Broker for GitHub Device Flow
+# Disabled by default. Enable and configure to support mobile authentication.
+# The broker handles GitHub Device Flow, issues opaque tokens, and proxies WebSocket
+# connections to the Gateway with verified X-Forwarded-Email headers.
+#
+# IMPORTANT: When enabled, you MUST:
+# 1. Enable Device Flow in your GitHub OAuth App settings
+# 2. Add the mobile hostname (default: mobile.claw.example.org) to your Cloudflare Tunnel
+# 3. Configure the same allowedEmails list as oauth2-proxy and gateway
+# 4. Update gateway.auth.trustedProxy.allowUsers to match allowedEmails
+#
+# Security notes:
+# - serverSecret must be at least 32 bytes (randomly generated if not provided)
+# - githubClientID is the public client ID from your GitHub OAuth App
+# - Never commit serverSecret or githubClientID to version control
+# - The broker uses SQLite with WAL mode - do NOT enable horizontal scaling
+mobileAuthBroker:
+  enabled: false
+  hostname: mobile.claw.example.org
+  
+  image:
+    repository: sctg/mobile-auth-broker
+    tag: latest
+    pullPolicy: IfNotPresent
+  
+  # GitHub OAuth App Client ID (public, but can be stored in secret for operational simplicity)
+  githubClientID: ""
+  
+  # Server secret for token hashing. Must be at least 32 bytes.
+  # If not provided, a random 64-byte secret will be generated.
+  serverSecret: ""
+  
+  # In-cluster OpenClaw Gateway service URL
+  gatewayServiceURL: ""
+  
+  # List of allowed email addresses (must match oauth2-proxy and gateway allow lists)
+  # These are the emails that can authenticate via mobile Device Flow
+  allowedEmails: []
+  
+  # Token lifetimes
+  accessTokenTTL: 1h
+  refreshTokenTTL: 720h
+  
+  # WebSocket configuration
+  maxMessageSize: 16777216  # 16MB to match iOS client
+  pollIntervalScale: 1.5
+  
+  service:
+    type: ClusterIP
+    port: 8080
+  
+  # Persistence for SQLite database
+  persistence:
+    enabled: true
+    size: 1Gi
+    storageClass: ""
+    accessModes:
+      - ReadWriteOnce
+    existingClaim: ""
+  
+  # Resource configuration
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  
+  # Probes
+  livenessProbe:
+    enabled: true
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 30
+  
+  readinessProbe:
+    enabled: true
+    initialDelaySeconds: 50
+    periodSeconds: 10
+    timeoutSeconds: 30
+  
+  # Security contexts
+  podSecurityContext:
+    fsGroup: 1000
+    seccompProfile:
+      type: RuntimeDefault
+  
+  containerSecurityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsUser: 1000
+  
+  # Service account
+  serviceAccount:
+    create: true
+    name: ""
+  
+  # Existing secret/configmap names (optional)
+  existingSecret: ""
+  secret:
+    create: true
+    name: ""
+  configMap:
+    create: true
+    name: ""
+  allowedEmailsConfigMap:
+    create: true
+    name: ""
+  
+  # Ingress configuration (optional - Cloudflare Tunnel is recommended)
+  ingress:
+    enabled: false
+    annotations: {}
+    tls: []
+  
+  # Node scheduling
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  imagePullSecrets: []

@@ -12,3 +12,42 @@ When Cloudflare Tunnel and oauth2-proxy are enabled, point their routes to the r
 
   oauth2-proxy upstream: http://{{ include "claw.fullname" . }}:{{ .Values.service.port }}
   cloudflared service:  http://{{ .Release.Name }}-oauth2-proxy:80
+
+{{- if .Values.mobileAuthBroker.enabled }}
+
+# Mobile Authentication Broker
+
+The mobile authentication broker is enabled and available at:
+
+  http://{{ include "claw.fullname" . }}-mobile-auth-broker:{{ .Values.mobileAuthBroker.service.port }}
+
+To complete the mobile authentication setup:
+
+1. **Enable Device Flow in GitHub OAuth App**:
+   - Go to your GitHub OAuth App settings
+   - Enable "Device Flow" under the application settings
+   - Ensure the "user:email" scope is configured
+
+2. **Configure Cloudflare Tunnel for mobile hostname**:
+   - Add an ingress rule for {{ .Values.mobileAuthBroker.hostname }} pointing to:
+     http://{{ .Release.Name }}-mobile-auth-broker:{{ .Values.mobileAuthBroker.service.port }}
+
+3. **Update Gateway trusted proxy configuration**:
+   - Ensure gateway.auth.mode is set to "trusted-proxy"
+   - Set gateway.auth.trustedProxy.userHeader to "x-forwarded-email"
+   - Configure gateway.auth.trustedProxy.allowUsers with the same emails as mobileAuthBroker.allowedEmails
+
+4. **Verify allow list consistency**:
+   - The same email addresses must be in:
+     - oauth2-proxy users.txt (or equivalent)
+     - mobileAuthBroker.allowedEmails
+     - gateway.auth.trustedProxy.allowUsers
+
+{{- end }}
+
+# Security Notes
+
+- Never commit .values.yaml or any file containing secrets to version control
+- The mobile-auth-broker uses SQLite with WAL mode - do NOT enable horizontal scaling
+- All tokens (GitHub, broker access/refresh) are stored hashed and never logged
+- The broker strips all sensitive headers before proxying to the Gateway

@@ -208,6 +208,224 @@
                 }
             },
             "additionalProperties": true
+        },
+        "mobileAuthBroker": {
+            "type": "object",
+            "description": "Mobile authentication broker for GitHub Device Flow. Disabled by default.",
+            "properties": {
+                "enabled": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Enable the mobile authentication broker."
+                },
+                "hostname": {
+                    "type": "string",
+                    "default": "mobile.claw.example.org",
+                    "description": "The hostname for the mobile broker (e.g., mobile.claw.example.org)."
+                },
+                "image": {
+                    "type": "object",
+                    "properties": {
+                        "repository": {
+                            "type": "string",
+                            "default": "sctg/mobile-auth-broker",
+                            "description": "Docker image repository for the mobile auth broker."
+                        },
+                        "tag": {
+                            "type": "string",
+                            "default": "latest",
+                            "description": "Docker image tag for the mobile auth broker."
+                        },
+                        "pullPolicy": {
+                            "type": "string",
+                            "default": "IfNotPresent",
+                            "description": "Image pull policy."
+                        }
+                    }
+                },
+                "githubClientID": {
+                    "type": "string",
+                    "description": "GitHub OAuth App client ID. Required when enabled."
+                },
+                "serverSecret": {
+                    "type": "string",
+                    "description": "Server secret for token hashing. Must be at least 32 bytes. If not provided, a random one will be generated."
+                },
+                "gatewayServiceURL": {
+                    "type": "string",
+                    "description": "In-cluster OpenClaw Gateway service URL. Defaults to http://<release-name>:18789."
+                },
+                "allowedEmails": {
+                    "type": "array",
+                    "items": { "type": "string" },
+                    "description": "List of allowed email addresses for mobile authentication. Must match oauth2-proxy and gateway allow lists."
+                },
+                "accessTokenTTL": {
+                    "type": "string",
+                    "default": "1h",
+                    "description": "Access token time-to-live (e.g., 1h, 30m)."
+                },
+                "refreshTokenTTL": {
+                    "type": "string",
+                    "default": "720h",
+                    "description": "Refresh token time-to-live (e.g., 720h = 30 days)."
+                },
+                "maxMessageSize": {
+                    "type": "integer",
+                    "default": 16777216,
+                    "description": "Maximum WebSocket message size in bytes (16MB default)."
+                },
+                "pollIntervalScale": {
+                    "type": "number",
+                    "default": 1.5,
+                    "description": "Factor to increase polling interval on slow_down responses."
+                },
+                "service": {
+                    "type": "object",
+                    "properties": {
+                        "type": {
+                            "type": "string",
+                            "default": "ClusterIP",
+                            "description": "Service type for the mobile auth broker."
+                        },
+                        "port": {
+                            "type": "integer",
+                            "default": 8080,
+                            "description": "Service port for the mobile auth broker."
+                        }
+                    }
+                },
+                "persistence": {
+                    "type": "object",
+                    "properties": {
+                        "enabled": {
+                            "type": "boolean",
+                            "default": true,
+                            "description": "Enable persistence for the broker database."
+                        },
+                        "size": {
+                            "type": "string",
+                            "default": "1Gi",
+                            "description": "Size of the persistent volume."
+                        },
+                        "storageClass": {
+                            "type": "string",
+                            "description": "Storage class for the persistent volume."
+                        },
+                        "accessModes": {
+                            "type": "array",
+                            "items": { "type": "string" },
+                            "default": ["ReadWriteOnce"],
+                            "description": "Access modes for the persistent volume."
+                        },
+                        "existingClaim": {
+                            "type": "string",
+                            "description": "Use an existing PVC instead of creating a new one."
+                        }
+                    }
+                },
+                "resources": {
+                    "type": "object",
+                    "additionalProperties": true,
+                    "description": "Resource requests and limits for the mobile auth broker."
+                },
+                "livenessProbe": {
+                    "type": "object",
+                    "properties": {
+                        "enabled": { "type": "boolean", "default": true },
+                        "initialDelaySeconds": { "type": "integer", "default": 30 },
+                        "periodSeconds": { "type": "integer", "default": 10 },
+                        "timeoutSeconds": { "type": "integer", "default": 30 }
+                    }
+                },
+                "readinessProbe": {
+                    "type": "object",
+                    "properties": {
+                        "enabled": { "type": "boolean", "default": true },
+                        "initialDelaySeconds": { "type": "integer", "default": 50 },
+                        "periodSeconds": { "type": "integer", "default": 10 },
+                        "timeoutSeconds": { "type": "integer", "default": 30 }
+                    }
+                },
+                "containerSecurityContext": {
+                    "type": "object",
+                    "additionalProperties": true,
+                    "description": "Security context for the mobile auth broker container."
+                },
+                "podSecurityContext": {
+                    "type": "object",
+                    "additionalProperties": true,
+                    "description": "Security context for the mobile auth broker pod."
+                },
+                "serviceAccount": {
+                    "type": "object",
+                    "properties": {
+                        "create": { "type": "boolean", "default": true },
+                        "name": { "type": "string" }
+                    }
+                },
+                "existingSecret": {
+                    "type": "string",
+                    "description": "Use an existing secret instead of creating a new one."
+                },
+                "secret": {
+                    "type": "object",
+                    "properties": {
+                        "name": { "type": "string" },
+                        "create": { "type": "boolean", "default": true }
+                    }
+                },
+                "configMap": {
+                    "type": "object",
+                    "properties": {
+                        "name": { "type": "string" },
+                        "create": { "type": "boolean", "default": true }
+                    }
+                },
+                "allowedEmailsConfigMap": {
+                    "type": "object",
+                    "properties": {
+                        "name": { "type": "string" },
+                        "create": { "type": "boolean", "default": true }
+                    }
+                },
+                "ingress": {
+                    "type": "object",
+                    "properties": {
+                        "enabled": { "type": "boolean", "default": false },
+                        "annotations": {
+                            "type": "object",
+                            "additionalProperties": true
+                        },
+                        "tls": {
+                            "type": "array",
+                            "items": { "type": "object" }
+                        }
+                    }
+                },
+                "nodeSelector": {
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "tolerations": {
+                    "type": "array",
+                    "items": { "type": "object" }
+                },
+                "affinity": {
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "imagePullSecrets": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "name": { "type": "string" }
+                        }
+                    }
+                }
+            },
+            "additionalProperties": false
         }
     }
 }

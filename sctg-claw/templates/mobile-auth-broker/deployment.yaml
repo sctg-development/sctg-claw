@@ -1,0 +1,118 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "claw.fullname" . }}-mobile-auth-broker
+  labels:
+    {{- include "claw.labels" . | nindent 4 }}
+    app.kubernetes.io/component: mobile-auth-broker
+  annotations:
+    checksum/config: {{ include (print $.Template.BasePath "/mobile-auth-broker/configmap.yaml") . | sha256sum }}
+    checksum/secret: {{ include (print $.Template.BasePath "/mobile-auth-broker/secret.yaml") . | sha256sum }}
+    checksum/allowed-emails: {{ include (print $.Template.BasePath "/mobile-auth-broker/allowed-emails.yaml") . | sha256sum }}
+spec:
+  replicas: {{ .Values.mobileAuthBroker.replicaCount | default 1 }}
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "claw.name" . }}-mobile-auth-broker
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        {{- include "claw.labels" . | nindent 8 }}
+        app.kubernetes.io/component: mobile-auth-broker
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/mobile-auth-broker/configmap.yaml") . | sha256sum }}
+        checksum/secret: {{ include (print $.Template.BasePath "/mobile-auth-broker/secret.yaml") . | sha256sum }}
+        checksum/allowed-emails: {{ include (print $.Template.BasePath "/mobile-auth-broker/allowed-emails.yaml") . | sha256sum }}
+    spec:
+      serviceAccountName: {{ if .Values.mobileAuthBroker.serviceAccount.create }}{{ default (include "claw.fullname" .) .Values.mobileAuthBroker.serviceAccount.name }}{{ else }}{{ required "mobileAuthBroker.serviceAccount.name must be set when serviceAccount.create is false" .Values.mobileAuthBroker.serviceAccount.name }}{{ end }}
+      securityContext:
+        {{- toYaml .Values.mobileAuthBroker.podSecurityContext | nindent 8 }}
+      {{- with .Values.mobileAuthBroker.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.mobileAuthBroker.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.mobileAuthBroker.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.mobileAuthBroker.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: mobile-auth-broker
+          image: "{{ .Values.mobileAuthBroker.image.repository }}:{{ .Values.mobileAuthBroker.image.tag }}"
+          imagePullPolicy: {{ .Values.mobileAuthBroker.image.pullPolicy | default "IfNotPresent" }}
+          ports:
+            - containerPort: {{ .Values.mobileAuthBroker.service.port }}
+              name: http
+          env:
+            - name: BROKER_HOSTNAME
+              value: {{ .Values.mobileAuthBroker.hostname | quote }}
+            - name: GITHUB_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "claw.mobileAuthBrokerSecretName" . }}
+                  key: githubClientID
+            - name: SERVER_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "claw.mobileAuthBrokerSecretName" . }}
+                  key: serverSecret
+            - name: GATEWAY_SERVICE_URL
+              value: {{ .Values.mobileAuthBroker.gatewayServiceURL | default (print "http://" (include "claw.fullname" .) ":" .Values.service.port) | quote }}
+            - name: ALLOWED_EMAILS
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "claw.mobileAuthBrokerAllowedEmailsConfigMapName" . }}
+                  key: allowedEmails
+            - name: ACCESS_TOKEN_TTL
+              value: {{ .Values.mobileAuthBroker.accessTokenTTL | default "1h" | quote }}
+            - name: REFRESH_TOKEN_TTL
+              value: {{ .Values.mobileAuthBroker.refreshTokenTTL | default "720h" | quote }}
+            - name: LISTEN_ADDR
+              value: ":{{ .Values.mobileAuthBroker.service.port }}"
+            - name: DATABASE_PATH
+              value: "/data/broker.db"
+            - name: MAX_MESSAGE_SIZE
+              value: {{ .Values.mobileAuthBroker.maxMessageSize | default "16777216" | quote }}
+            - name: POLL_INTERVAL_SCALE
+              value: {{ .Values.mobileAuthBroker.pollIntervalScale | default "1.5" | quote }}
+          securityContext:
+            {{- toYaml .Values.mobileAuthBroker.containerSecurityContext | nindent 12 }}
+          resources:
+            {{- toYaml .Values.mobileAuthBroker.resources | nindent 12 }}
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+              scheme: HTTP
+            initialDelaySeconds: {{ .Values.mobileAuthBroker.livenessProbe.initialDelaySeconds | default 30 }}
+            periodSeconds: {{ .Values.mobileAuthBroker.livenessProbe.periodSeconds | default 10 }}
+            timeoutSeconds: {{ .Values.mobileAuthBroker.livenessProbe.timeoutSeconds | default 30 }}
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+              scheme: HTTP
+            initialDelaySeconds: {{ .Values.mobileAuthBroker.readinessProbe.initialDelaySeconds | default 50 }}
+            periodSeconds: {{ .Values.mobileAuthBroker.readinessProbe.periodSeconds | default 10 }}
+            timeoutSeconds: {{ .Values.mobileAuthBroker.readinessProbe.timeoutSeconds | default 30 }}
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      volumes:
+        - name: data
+          {{- if .Values.mobileAuthBroker.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "claw.mobileAuthBrokerPVCName" . }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}

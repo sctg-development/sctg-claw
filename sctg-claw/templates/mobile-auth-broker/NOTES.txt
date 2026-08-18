@@ -1,0 +1,39 @@
+Mobile Authentication Broker for OpenClaw Gateway
+==================================================
+
+The mobile-auth-broker service is deployed and available at:
+
+  http://{{ include "claw.fullname" . }}-mobile-auth-broker:{{ .Values.mobileAuthBroker.service.port }}
+
+## Configuration Summary
+
+- **Hostname**: {{ .Values.mobileAuthBroker.hostname }}
+- **GitHub Client ID**: Configured via secret
+- **Allowed Emails**: {{ .Values.mobileAuthBroker.allowedEmails | join ", " }}
+- **Access Token TTL**: {{ .Values.mobileAuthBroker.accessTokenTTL | default "1h" }}
+- **Refresh Token TTL**: {{ .Values.mobileAuthBroker.refreshTokenTTL | default "720h" }}
+
+## Setup Checklist
+
+1. [ ] **GitHub OAuth App**: Device Flow is enabled
+2. [ ] **Cloudflare Tunnel**: Add ingress rule for {{ .Values.mobileAuthBroker.hostname }} -> http://{{ .Release.Name }}-mobile-auth-broker:{{ .Values.mobileAuthBroker.service.port }}
+3. [ ] **Gateway Configuration**: gateway.auth.trustedProxy.allowUsers matches allowedEmails
+4. [ ] **NetworkPolicy**: Verify that only oauth2-proxy and mobile-auth-broker can reach the Gateway service
+
+## API Endpoints
+
+- `POST /v1/device-authorizations` - Initiate Device Flow
+- `GET /v1/device-authorizations/{transaction_id}` - Poll for authorization status
+- `POST /v1/sessions/refresh` - Refresh access token
+- `DELETE /v1/sessions/current` - Revoke current session
+- `GET /healthz` - Health check
+- `GET /readyz` - Readiness check
+- `GET /` (WebSocket) - Proxy to Gateway
+
+## Security Notes
+
+- All GitHub tokens are discarded after use
+- Access/refresh tokens are stored hashed (not plaintext)
+- The broker strips all sensitive headers before proxying to Gateway
+- SQLite database is stored on a PVC with restricted permissions
+- Do NOT enable horizontal scaling with SQLite

@@ -1,0 +1,21 @@
+# Go
+/go
+# *.mod
+# *.sum
+
+# Binaries
+mobile-auth-broker
+
+# IDE
+.idea
+.vscode
+*.swp
+
+# OS
+.DS_Store
+
+# Logs
+*.log
+
+# Test
+coverage.txt

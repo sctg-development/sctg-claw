@@ -4,6 +4,7 @@ A personal, self-hosted [OpenClaw](https://github.com/openclaw/openclaw) gateway
 
 ## Architecture
 
+### Browser Flow
 ```
 Browser / client
       |
@@ -17,9 +18,44 @@ oauth2-proxy  (GitHub OAuth, allow-listed to 2 accounts)
 OpenClaw Gateway  (gateway.auth.mode: trusted-proxy)
 ```
 
+### Mobile Flow (when mobileAuthBroker.enabled = true)
+```
+iOS App
+  |
+  v (HTTPS/WSS to mobile.claw.example.org)
+Cloudflare Tunnel
+  |
+  v
+mobile-auth-broker  (GitHub Device Flow, opaque tokens)
+  |
+  v (WebSocket proxy with X-Forwarded-Email)
+OpenClaw Gateway  (gateway.auth.mode: trusted-proxy)
+```
+
 - **Cloudflare Tunnel** terminates the public hostname and forwards to oauth2-proxy inside the cluster — no inbound ports are opened on the cluster itself.
 - **oauth2-proxy** gates access with GitHub login, restricted to an explicit `users.txt` allow-list (currently 2 accounts). It forwards the verified identity to the gateway via the `X-Forwarded-Email` header (`pass_user_headers: true`).
 - **OpenClaw Gateway** runs with `gateway.auth.mode: trusted-proxy` and trusts that header (scoped to `gateway.auth.trustedProxy.allowUsers`) instead of a shared token. New Control UI/browser devices from an allow-listed identity are auto-approved with a capped, non-admin scope set (`gateway.auth.trustedProxy.deviceAutoApprove`) — the whole point being to avoid having to `kubectl exec` into the pod and run `openclaw devices approve <id>` for every new browser session.
+
+### Mobile Authentication Broker
+
+When `mobileAuthBroker.enabled` is set to `true`, the chart deploys a **mobile-auth-broker** service that:
+
+1. **Handles GitHub Device Flow**: The broker initiates the Device Flow with GitHub OAuth App and manages the polling/verification process server-side. The iOS app only displays the user code and verification URI.
+
+2. **Issues Opaque Tokens**: After successful GitHub authorization and allow-list verification, the broker issues opaque access and refresh tokens to the iOS app. The iOS app never sees or stores GitHub tokens.
+
+3. **Proxies WebSocket Connections**: The broker acts as a reverse proxy for WebSocket connections, validating the access token and injecting the verified `X-Forwarded-Email` header before forwarding to the Gateway.
+
+4. **Enforces Allow-List**: The same email allow-list used by oauth2-proxy and the Gateway is enforced by the broker. Only emails in this list can complete Device Flow and receive tokens.
+
+5. **Token Rotation**: Refresh tokens rotate on every use, with the old token being immediately invalidated. Access tokens have a 1-hour lifetime by default.
+
+**Security Properties**:
+- GitHub `device_code` and access tokens are never exposed to the iOS app
+- All tokens are stored hashed in SQLite (not plaintext)
+- The Gateway only receives `X-Forwarded-Email` from trusted proxies (oauth2-proxy and mobile-auth-broker)
+- NetworkPolicy restricts broker egress to Gateway service and GitHub APIs only
+- No direct path exists from Cloudflare to Gateway — all traffic goes through a trusted proxy
 
 ## Repository layout
 
@@ -87,6 +123,63 @@ The chart aims to keep 100% of the deployment-specific configuration in one priv
 - `sctg-claw/values.yaml` — chart defaults, safe to commit, no secrets.
 - `.values.yaml` (this repo's root, **git-ignored**) — the actual deployment overlay: API keys, Cloudflare Tunnel credentials, GitHub OAuth client secret, and any `openclaw.config` overrides.
 
+### Mobile Auth Broker Configuration
+
+To enable mobile authentication, add the following to your `.values.yaml`:
+
+```yaml
+mobileAuthBroker:
+  enabled: true
+  hostname: mobile.claw.example.org
+  githubClientID: "your-github-oauth-app-client-id"
+  allowedEmails:
+    - "user1@example.com"
+    - "user2@example.com"
+
+# Update Gateway to trust the broker's X-Forwarded-Email header
+oauth2-proxy:
+  enabled: true
+  config:
+    clientID: "your-github-oauth-app-client-id"
+    clientSecret: "your-github-oauth-app-client-secret"
+    cookieSecret: "your-cookie-secret"
+    configFile: |
+      email_domains = [ "*" ]
+      upstreams = [ "http://sctg-claw:18789" ]
+      provider = "github"
+      pass_access_token = true
+      pass_basic_auth = true
+      pass_user_headers = true
+      pass_host_header = true
+
+openclaw:
+  config:
+    gateway:
+      auth:
+        mode: trusted-proxy
+        trustedProxy:
+          userHeader: x-forwarded-email
+          allowUsers:
+            - "user1@example.com"
+            - "user2@example.com"
+          deviceAutoApprove:
+            enabled: true
+            scopes: ["operator.read", "operator.write", "operator.approvals"]
+```
+
+**Important**: The `allowedEmails` list in `mobileAuthBroker`, oauth2-proxy's allow-list, and `gateway.auth.trustedProxy.allowUsers` must be **identical** for consistent access control.
+
+### GitHub OAuth App Setup
+
+Before enabling the mobile auth broker:
+
+1. Go to your GitHub OAuth App settings (https://github.com/settings/developers)
+2. Enable **Device Flow** for your OAuth App
+3. Ensure the **Callback URL** is not required for Device Flow (it uses a different flow)
+4. Verify that the app has the `user:email` scope configured
+
+The same OAuth App used for browser authentication (via oauth2-proxy) can be used for Device Flow.
+
 `openclaw.config` is a free-form pass-through rendered directly into `/home/node/.openclaw/openclaw.json` inside the container, so OpenClaw config keys can be set there without touching chart templates, for example:
 
 ```yaml
@@ -125,5 +218,6 @@ helm upgrade --install sctg-claw ./sctg-claw -f .values.yaml --namespace claw --
 
 - **Dev environment**: Docker Desktop's built-in Kubernetes cluster.
 - **Target**: an 8-node cluster (7× arm64, 1× amd64).
-- **Open item**: `gateway.auth.mode: trusted-proxy` trusts the `X-Forwarded-Email` header from any caller inside `gateway.trustedProxies` (currently the whole `10.0.0.0/8` pod CIDR by default). A `NetworkPolicy` restricting which pods can reach the OpenClaw `Service` to oauth2-proxy only is the natural hardening step before this is exposed beyond a single-tenant dev cluster.
+- **Open item**: `gateway.auth.mode: trusted-proxy` trusts the `X-Forwarded-Email` header from any caller inside `gateway.trustedProxies` (currently the whole `10.0.0.0/8` pod CIDR by default). A `NetworkPolicy` restricting which pods can reach the OpenClaw `Service` to oauth2-proxy and mobile-auth-broker only is the natural hardening step before this is exposed beyond a single-tenant dev cluster.
 - **Open item**: `sctg-claw/values.schema.json` documents the chart's own values but intentionally leaves the vendored `cloudflared`/`oauth2-proxy` sub-chart values and `openclaw.config`'s internals loosely typed, since those are owned upstream.
+- **Mobile Auth Broker**: The mobile-auth-broker service is currently in development. When enabled, it provides GitHub Device Flow authentication for iOS clients with the same security guarantees as the browser flow (trusted-proxy mode, no shared tokens).

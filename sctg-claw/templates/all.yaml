@@ -1,0 +1,43 @@
+{{- /*
+This template combines all the templates for the chart.
+It's used to render everything in one go for testing purposes.
+*/ -}}
+{{- define "claw.all" -}}
+{{- /* Main deployment */ -}}
+{{- include "claw.deployment" . -}}
+{{- /* Service */ -}}
+{{- include "claw.service" . -}}
+{{- /* ConfigMap */ -}}
+{{- include "claw.configmap" . -}}
+{{- /* Secret */ -}}
+{{- if .Values.openclaw.secret.create -}}
+{{- include "claw.secret" . -}}
+{{- end -}}
+{{- /* PersistentVolumeClaim */ -}}
+{{- if .Values.persistence.enabled -}}
+{{- include "claw.pvc" . -}}
+{{- end -}}
+{{- /* Ingress */ -}}
+{{- if .Values.ingress.enabled -}}
+{{- include "claw.ingress" . -}}
+{{- end -}}
+{{- /* oauth2-proxy */ -}}
+{{- if .Values.oauth2-proxy.enabled -}}
+{{- include "claw.oauth2-proxy" . -}}
+{{- end -}}
+{{- /* cloudflared */ -}}
+{{- if .Values.cloudflared.enabled -}}
+{{- include "claw.cloudflared" . -}}
+{{- end -}}
+{{- /* Mobile Auth Broker */ -}}
+{{- if .Values.mobileAuthBroker.enabled -}}
+{{- include "claw.mobile-auth-broker.deployment" . -}}
+{{- include "claw.mobile-auth-broker.service" . -}}
+{{- include "claw.mobile-auth-broker.configmap" . -}}
+{{- include "claw.mobile-auth-broker.secret" . -}}
+{{- include "claw.mobile-auth-broker.allowed-emails" . -}}
+{{- include "claw.mobile-auth-broker.pvc" . -}}
+{{- include "claw.mobile-auth-broker.networkpolicy" . -}}
+{{- include "claw.mobile-auth-broker.ingress" . -}}
+{{- end -}}
+{{- end -}}
