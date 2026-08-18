@@ -4,8 +4,8 @@ bin/
 
 # Go
 /go
-*.mod
-*.sum
+# *.mod
+# *.sum
 
 # IDE
 .idea
