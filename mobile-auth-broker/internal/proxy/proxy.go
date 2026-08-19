@@ -4,6 +4,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -170,11 +171,16 @@ func (p *WebSocketProxy) HandleWebSocket(w http.ResponseWriter, r *http.Request)
 		return nil
 	})
 
-	// Start bidirectional proxy
+	// Start bidirectional proxy. Both directions signal the same done channel
+	// on exit, so closing it must be idempotent -- whichever side the peer
+	// closes first still lets the other goroutine's blocked Read unblock and
+	// return, and it would otherwise double-close done and panic the process.
 	done := make(chan struct{})
+	var closeDoneOnce sync.Once
+	closeDone := func() { closeDoneOnce.Do(func() { close(done) }) }
 
 	go func() {
-		defer close(done)
+		defer closeDone()
 		for {
 			messageType, message, err := conn.ReadMessage()
 			if err != nil {
@@ -190,7 +196,7 @@ func (p *WebSocketProxy) HandleWebSocket(w http.ResponseWriter, r *http.Request)
 	}()
 
 	go func() {
-		defer close(done)
+		defer closeDone()
 		for {
 			messageType, message, err := gatewayConn.ReadMessage()
 			if err != nil {
