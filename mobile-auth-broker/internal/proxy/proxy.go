@@ -185,6 +185,7 @@ func (p *WebSocketProxy) HandleWebSocket(w http.ResponseWriter, r *http.Request)
 			messageType, message, err := conn.ReadMessage()
 			if err != nil {
 				log.Printf("DEBUG: Client read error: %v", err)
+				forwardCloseCode(gatewayConn, err)
 				return
 			}
 
@@ -201,6 +202,7 @@ func (p *WebSocketProxy) HandleWebSocket(w http.ResponseWriter, r *http.Request)
 			messageType, message, err := gatewayConn.ReadMessage()
 			if err != nil {
 				log.Printf("DEBUG: Gateway read error: %v", err)
+				forwardCloseCode(conn, err)
 				return
 			}
 
@@ -223,4 +225,24 @@ func (p *WebSocketProxy) HandleWebSocket(w http.ResponseWriter, r *http.Request)
 		"completed",
 		"WebSocket connection closed",
 	)
+}
+
+// forwardCloseCode relays a peer's real WebSocket close code/reason onto the
+// other leg before the connection tears down. Without this, every close --
+// including a clean 1001 "going away" from a client backgrounding the app --
+// reaches the other side as a raw TCP drop (1006 "abnormal closure"), which
+// looks like the connection was hijacked or lost rather than a normal
+// lifecycle event. Only forwards when readErr is a genuine close frame from
+// the peer (*websocket.CloseError); other read errors (timeouts, broken
+// pipes) get no synthesized close code, so a real abnormal drop still reads
+// as abnormal on the other side.
+func forwardCloseCode(dst *websocket.Conn, readErr error) {
+	closeErr, ok := readErr.(*websocket.CloseError)
+	if !ok {
+		return
+	}
+	_ = dst.WriteControl(
+		websocket.CloseMessage,
+		websocket.FormatCloseMessage(closeErr.Code, closeErr.Text),
+		time.Now().Add(time.Second))
 }
