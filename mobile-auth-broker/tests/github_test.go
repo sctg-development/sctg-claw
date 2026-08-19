@@ -53,6 +53,7 @@ func TestGitHubClient_RequestDeviceAuthorization(t *testing.T) {
 	defer server.Close()
 
 	client := github.NewClient("test-client-id", server.URL)
+	client.SetOAuthBaseURL(server.URL)
 
 	resp, err := client.RequestDeviceAuthorization("user:email")
 	if err != nil {
@@ -104,6 +105,7 @@ func TestGitHubClient_PollDeviceAuthorization_Pending(t *testing.T) {
 	defer server.Close()
 
 	client := github.NewClient("test-client-id", server.URL)
+	client.SetOAuthBaseURL(server.URL)
 
 	token, auth, err := client.PollDeviceAuthorization("test-device-code")
 	if err != nil {
@@ -137,6 +139,7 @@ func TestGitHubClient_PollDeviceAuthorization_SlowDown(t *testing.T) {
 	defer server.Close()
 
 	client := github.NewClient("test-client-id", server.URL)
+	client.SetOAuthBaseURL(server.URL)
 
 	token, auth, err := client.PollDeviceAuthorization("test-device-code")
 	if err != nil {
@@ -170,6 +173,7 @@ func TestGitHubClient_PollDeviceAuthorization_Success(t *testing.T) {
 	defer server.Close()
 
 	client := github.NewClient("test-client-id", server.URL)
+	client.SetOAuthBaseURL(server.URL)
 
 	token, auth, err := client.PollDeviceAuthorization("test-device-code")
 	if err != nil {

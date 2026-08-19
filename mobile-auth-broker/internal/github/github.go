@@ -14,22 +14,37 @@ import (
 // Custom status code for GitHub Device Flow
 const StatusAuthorizationPending = 202
 
+// GitHub's OAuth device-flow endpoints (/login/oauth/device/*) live on
+// github.com, not api.github.com. This is the production default; it is a
+// fixed, non-configurable host for real GitHub.com usage (unlike the REST API
+// base, which GITHUB_API_BASE_URL can point at a GHE instance for the REST
+// calls below). Tests override it via SetOAuthBaseURL to point at a mock server.
+const defaultOAuthBaseURL = "https://github.com"
+
 type Client struct {
-	clientID   string
-	baseURL    string
-	httpClient *http.Client
+	clientID     string
+	baseURL      string
+	oauthBaseURL string
+	httpClient   *http.Client
 }
 
 func NewClient(clientID, baseURL string) *Client {
 	return &Client{
-		clientID:   clientID,
-		baseURL:    baseURL,
-		httpClient: &http.Client{Timeout: 30 * time.Second},
+		clientID:     clientID,
+		baseURL:      baseURL,
+		oauthBaseURL: defaultOAuthBaseURL,
+		httpClient:   &http.Client{Timeout: 30 * time.Second},
 	}
 }
 
+// SetOAuthBaseURL overrides the OAuth device-flow host (github.com by
+// default). Intended for tests that point device-flow calls at a mock server.
+func (c *Client) SetOAuthBaseURL(url string) {
+	c.oauthBaseURL = url
+}
+
 func (c *Client) RequestDeviceAuthorization(scope string) (*models.GitHubDeviceAuth, error) {
-	url := fmt.Sprintf("%s/login/oauth/device/code", c.baseURL)
+	url := fmt.Sprintf("%s/login/oauth/device/code", c.oauthBaseURL)
 
 	data := fmt.Sprintf("client_id=%s&scope=%s", c.clientID, scope)
 	resp, err := c.httpClient.Post(url, "application/x-www-form-urlencoded", bytes.NewBufferString(data))
@@ -56,7 +71,7 @@ func (c *Client) RequestDeviceAuthorization(scope string) (*models.GitHubDeviceA
 }
 
 func (c *Client) PollDeviceAuthorization(deviceCode string) (*models.GitHubToken, *models.GitHubDeviceAuth, error) {
-	url := fmt.Sprintf("%s/login/oauth/device/access_token", c.baseURL)
+	url := fmt.Sprintf("%s/login/oauth/device/access_token", c.oauthBaseURL)
 
 	data := fmt.Sprintf("client_id=%s&device_code=%s&grant_type=urn:ietf:params:oauth:grant-type:device_code",
 		c.clientID, deviceCode)
