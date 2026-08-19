@@ -4,7 +4,7 @@ FROM golang:1.21-alpine AS builder
 WORKDIR /app
 
 # Install dependencies
-RUN apk add --no-cache git
+RUN apk add --no-cache git build-base
 
 # Copy go mod files
 COPY go.mod go.sum ./
@@ -13,8 +13,8 @@ RUN go mod download
 # Copy source code
 COPY . .
 
-# Build the binary
-RUN CGO_ENABLED=0 GOOS=linux go build -o /mobile-auth-broker ./cmd/main.go
+# go-sqlite3 requires cgo; build-base above provides the musl gcc toolchain
+RUN CGO_ENABLED=1 GOOS=linux go build -o /mobile-auth-broker ./cmd/main.go
 
 # Final stage
 FROM alpine:3.18
