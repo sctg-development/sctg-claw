@@ -22,7 +22,7 @@ It's used to render everything in one go for testing purposes.
 {{- include "claw.ingress" . -}}
 {{- end -}}
 {{- /* oauth2-proxy */ -}}
-{{- if .Values.oauth2-proxy.enabled -}}
+{{- if (index .Values "oauth2-proxy").enabled -}}
 {{- include "claw.oauth2-proxy" . -}}
 {{- end -}}
 {{- /* cloudflared */ -}}

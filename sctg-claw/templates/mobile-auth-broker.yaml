@@ -3,18 +3,6 @@ Mobile Auth Broker templates - included when mobileAuthBroker.enabled is true
 */ -}}
 {{- if .Values.mobileAuthBroker.enabled -}}
 
-{{- /* ConfigMap for broker configuration */ -}}
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: {{ include "claw.mobileAuthBrokerConfigMapName" . }}
-  labels:
-    {{- include "claw.labels" . | nindent 4 }}
-    app.kubernetes.io/component: mobile-auth-broker
-data:
-  {{- /* Empty for now - configuration is via environment variables */ -}}
----
-
 {{- /* ConfigMap for allowed emails */ -}}
 apiVersion: v1
 kind: ConfigMap
@@ -73,9 +61,8 @@ metadata:
     {{- include "claw.labels" . | nindent 4 }}
     app.kubernetes.io/component: mobile-auth-broker
   annotations:
-    checksum/config: {{ include (print $.Template.BasePath "/mobile-auth-broker/configmap.yaml") . | sha256sum }}
-    checksum/secret: {{ include (print $.Template.BasePath "/mobile-auth-broker/secret.yaml") . | sha256sum }}
-    checksum/allowed-emails: {{ include (print $.Template.BasePath "/mobile-auth-broker/allowed-emails.yaml") . | sha256sum }}
+    checksum/secret: {{ print .Values.mobileAuthBroker.serverSecret .Values.mobileAuthBroker.githubClientID | sha256sum }}
+    checksum/allowed-emails: {{ .Values.mobileAuthBroker.allowedEmails | join "," | sha256sum }}
 spec:
   replicas: {{ .Values.mobileAuthBroker.replicaCount | default 1 }}
   strategy:
@@ -87,12 +74,14 @@ spec:
   template:
     metadata:
       labels:
-        {{- include "claw.labels" . | nindent 8 }}
+        app.kubernetes.io/name: {{ include "claw.name" . }}-mobile-auth-broker
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+        app.kubernetes.io/managed-by: {{ .Release.Service }}
         app.kubernetes.io/component: mobile-auth-broker
       annotations:
-        checksum/config: {{ include (print $.Template.BasePath "/mobile-auth-broker/configmap.yaml") . | sha256sum }}
-        checksum/secret: {{ include (print $.Template.BasePath "/mobile-auth-broker/secret.yaml") . | sha256sum }}
-        checksum/allowed-emails: {{ include (print $.Template.BasePath "/mobile-auth-broker/allowed-emails.yaml") . | sha256sum }}
+        checksum/secret: {{ print .Values.mobileAuthBroker.serverSecret .Values.mobileAuthBroker.githubClientID | sha256sum }}
+        checksum/allowed-emails: {{ .Values.mobileAuthBroker.allowedEmails | join "," | sha256sum }}
     spec:
       serviceAccountName: {{ if .Values.mobileAuthBroker.serviceAccount.create }}{{ default (include "claw.fullname" .) .Values.mobileAuthBroker.serviceAccount.name }}{{ else }}{{ required "mobileAuthBroker.serviceAccount.name must be set when serviceAccount.create is false" .Values.mobileAuthBroker.serviceAccount.name }}{{ end }}
       securityContext:
@@ -222,12 +211,9 @@ spec:
     - Egress
   ingress:
     - from:
-        - namespaceSelector:
+        - podSelector:
             matchLabels:
-              name: {{ .Release.Namespace | default "default" }}
-          podSelector:
-            matchLabels:
-              app.kubernetes.io/name: {{ include "claw.name" . }}-cloudflared
+              app: {{ .Release.Name }}-cloudflared
       ports:
         - port: {{ .Values.mobileAuthBroker.service.port }}
           protocol: TCP
