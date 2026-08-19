@@ -57,6 +57,29 @@ When `mobileAuthBroker.enabled` is set to `true`, the chart deploys a **mobile-a
 - NetworkPolicy restricts broker egress to Gateway service and GitHub APIs only
 - No direct path exists from Cloudflare to Gateway — all traffic goes through a trusted proxy
 
+### Device Flow Validation Tool
+
+A standalone Rust CLI tool lives at `mobile-auth-broker/tools/device-flow-validate`. It exercises the full GitHub Device Authorization flow exposed by the broker end-to-end and exits with code `0` on success (`approved` status) or `1` on failure:
+
+```
+[1/3] GET  /healthz
+[2/3] POST /v1/device-authorizations   → prints transaction_id, user_code, verification_uri, …
+[3/3] GET  /v1/device-authorizations/{id}  → polls until a terminal status
+```
+
+```bash
+cargo run --quiet -- \
+  --url https://mobile.claw.example.org \
+  --timeout 900
+```
+
+| Flag | Description |
+| --- | --- |
+| `--url` | Base URL of the broker (e.g. `https://mobile.claw.example.org`) |
+| `--timeout` | Overall timeout in seconds (default `900`, GitHub codes expire after ~15 min) |
+
+The tool validates the broker's `/healthz` endpoint, creates a device-authorization transaction, prints the user code and verification URI for manual approval, then polls until the transaction reaches a terminal status (`approved`, `denied`, `forbidden`, or `expired`). On `approved`, it displays the issued tokens (masked) and subject email; on any other terminal status it reports the error and exits non-zero.
+
 ## Repository layout
 
 | Path | Purpose |

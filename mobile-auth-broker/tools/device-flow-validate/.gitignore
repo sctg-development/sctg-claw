@@ -1,0 +1,37 @@
+# Compilation
+/target
+**/*.rs.bk
+*.pdb
+
+# Profils de build personnalisés
+/debug
+/release
+
+# Cargo
+# Note : Cargo.lock est intentionnellement commité (projet binaire)
+.cargo/config.toml.bak
+cargo-cov-*
+
+# Clés de signature crates (si publication)
+*.crate
+
+# IDE et éditeurs
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Fuites de données de test / fuzz
+fuzz/target/
+corpus/
+
+# Logs et sorties locales
+*.log
+.env
+.env.local
+.env.*.local
