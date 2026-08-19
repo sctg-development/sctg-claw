@@ -58,6 +58,10 @@ openclaw:
     name: ""
     # Required with the default gateway auth configuration.
     gatewayToken: ""
+    # Optional local-callers password (coexists with trusted-proxy auth, unlike
+    # gatewayToken). Lets in-cluster CLI/kubectl-exec calls authenticate
+    # without going through the reverse proxy.
+    gatewayPassword: ""
     # Values may contain one key or comma-separated key pools.
     mistralApiKeys: ""
     cohereApiKeys: ""

@@ -56,6 +56,10 @@
                             "type": "string",
                             "description": "Required only when openclaw.config.gateway.auth.mode is token; mutually exclusive with trusted-proxy auth."
                         },
+                        "gatewayPassword": {
+                            "type": "string",
+                            "description": "Optional local-callers password auth (OPENCLAW_GATEWAY_PASSWORD), coexists with gateway.auth.mode: trusted-proxy. Lets in-cluster CLI/kubectl-exec calls (openclaw devices approve, etc.) authenticate without going through the reverse proxy."
+                        },
                         "mistralApiKeys": { "type": "string" },
                         "cohereApiKeys": { "type": "string" },
                         "poolsideApiKeys": { "type": "string" },
