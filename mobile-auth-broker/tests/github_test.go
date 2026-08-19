@@ -12,9 +12,6 @@ import (
 	"github.com/sctg-development/sctg-claw/mobile-auth-broker/internal/models"
 )
 
-// Custom status code for GitHub Device Flow
-const StatusAuthorizationPending = 202
-
 func TestGitHubClient_RequestDeviceAuthorization(t *testing.T) {
 	// Create a test server that mocks GitHub's device authorization endpoint
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -23,8 +20,8 @@ func TestGitHubClient_RequestDeviceAuthorization(t *testing.T) {
 			t.Errorf("Expected POST method, got %s", r.Method)
 		}
 
-		if r.URL.Path != "/login/oauth/device/code" {
-			t.Errorf("Expected path /login/oauth/device/code, got %s", r.URL.Path)
+		if r.URL.Path != "/login/device/code" {
+			t.Errorf("Expected path /login/device/code, got %s", r.URL.Path)
 		}
 
 		// Verify client_id
@@ -89,17 +86,16 @@ func TestGitHubClient_PollDeviceAuthorization_Pending(t *testing.T) {
 			t.Errorf("Expected POST method, got %s", r.Method)
 		}
 
-		if r.URL.Path != "/login/oauth/device/access_token" {
-			t.Errorf("Expected path /login/oauth/device/access_token, got %s", r.URL.Path)
+		if r.URL.Path != "/login/oauth/access_token" {
+			t.Errorf("Expected path /login/oauth/access_token, got %s", r.URL.Path)
 		}
 
-		// Return pending response
+		// GitHub always answers 200 OK; the pending state lives in the body.
 		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(StatusAuthorizationPending)
+		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"error":             "authorization_pending",
 			"error_description": "Authorization pending",
-			"interval":          5,
 		})
 	}))
 	defer server.Close()
@@ -116,20 +112,17 @@ func TestGitHubClient_PollDeviceAuthorization_Pending(t *testing.T) {
 		t.Error("Expected no token for pending authorization")
 	}
 
-	if auth == nil {
-		t.Error("Expected auth response for pending authorization")
-	}
-
-	if auth.Interval != 5 {
-		t.Errorf("Expected interval 5, got %d", auth.Interval)
+	if auth != nil {
+		t.Error("Expected no auth response for plain pending authorization (only slow_down carries one)")
 	}
 }
 
 func TestGitHubClient_PollDeviceAuthorization_SlowDown(t *testing.T) {
 	// Create a test server that returns slow_down
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// GitHub always answers 200 OK; slow_down lives in the body too.
 		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusBadRequest)
+		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"error":             "slow_down",
 			"error_description": "Slow down",
