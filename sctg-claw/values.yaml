@@ -494,47 +494,47 @@ oauth2-proxy:
 mobileAuthBroker:
   enabled: false
   hostname: mobile.claw.example.org
-  
+
   image:
     repository: sctg/mobile-auth-broker
     tag: latest
     pullPolicy: IfNotPresent
-  
+
   # GitHub OAuth App Client ID (public, but can be stored in secret for operational simplicity)
   githubClientID: ""
-  
+
   # Server secret for token hashing. Must be at least 32 bytes.
   # If not provided, a random 64-byte secret will be generated.
   serverSecret: ""
-  
+
   # In-cluster OpenClaw Gateway service URL
   gatewayServiceURL: ""
-  
+
   # List of allowed email addresses (must match oauth2-proxy and gateway allow lists)
   # These are the emails that can authenticate via mobile Device Flow
   allowedEmails: []
-  
+
   # Token lifetimes
   accessTokenTTL: 1h
   refreshTokenTTL: 720h
-  
+
   # WebSocket configuration
-  maxMessageSize: 16777216  # 16MB to match iOS client
+  maxMessageSize: 16777216 # 16MB to match iOS client
   pollIntervalScale: 1.5
-  
+
   service:
     type: ClusterIP
     port: 8080
-  
+
   # Persistence for SQLite database
   persistence:
     enabled: true
     size: 1Gi
     storageClass: ""
     accessModes:
-      - ReadWriteOnce
+    - ReadWriteOnce
     existingClaim: ""
-  
+
   # Resource configuration
   resources:
     requests:
@@ -543,40 +543,40 @@ mobileAuthBroker:
     limits:
       cpu: 500m
       memory: 512Mi
-  
+
   # Probes
   livenessProbe:
     enabled: true
     initialDelaySeconds: 30
-    periodSeconds: 10
-    timeoutSeconds: 30
-  
+    periodSeconds: 60
+    timeoutSeconds: 120
+
   readinessProbe:
     enabled: true
     initialDelaySeconds: 50
-    periodSeconds: 10
-    timeoutSeconds: 30
-  
+    periodSeconds: 60
+    timeoutSeconds: 120
+
   # Security contexts
   podSecurityContext:
     fsGroup: 1000
     seccompProfile:
       type: RuntimeDefault
-  
+
   containerSecurityContext:
     allowPrivilegeEscalation: false
     capabilities:
       drop:
-        - ALL
+      - ALL
     readOnlyRootFilesystem: true
     runAsNonRoot: true
     runAsUser: 1000
-  
+
   # Service account
   serviceAccount:
     create: true
     name: ""
-  
+
   # Existing secret/configmap names (optional)
   existingSecret: ""
   secret:
@@ -588,13 +588,13 @@ mobileAuthBroker:
   allowedEmailsConfigMap:
     create: true
     name: ""
-  
+
   # Ingress configuration (optional - Cloudflare Tunnel is recommended)
   ingress:
     enabled: false
     annotations: {}
     tls: []
-  
+
   # Node scheduling
   nodeSelector: {}
   tolerations: []
