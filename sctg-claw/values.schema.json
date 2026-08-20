@@ -69,7 +69,8 @@
                         "poolsideApiKeys": { "type": "string" },
                         "exaApiKeys": { "type": "string" },
                         "firecrawlApiKeys": { "type": "string" },
-                        "googlePlacesApiKeys": { "type": "string" } 
+                        "googlePlacesApiKeys": { "type": "string" },
+                        "evenlabsApiKeys": { "type": "string" }
                     }
                 },
                 "config": {
