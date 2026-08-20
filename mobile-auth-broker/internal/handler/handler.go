@@ -508,14 +508,6 @@ func (h *Handler) handleRefreshSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tx, err := h.db.BeginTx()
-	if err != nil {
-		log.Printf("ERROR: Failed to begin transaction: %v", err)
-		http.Error(w, `{"error": "server_error", "error_message": "Failed to process request"}`, http.StatusInternalServerError)
-		return
-	}
-	defer tx.Rollback()
-
 	// Create new access session
 	if err := h.db.CreateAccessSession(newAccessSessionID, device.ID, newAccessTokenHash, now, newAccessExpiresAt); err != nil {
 		log.Printf("ERROR: Failed to create new access session: %v", err)
@@ -523,22 +515,18 @@ func (h *Handler) handleRefreshSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Create new refresh session with parent reference
-	if err := h.db.CreateRefreshSession(newRefreshSessionID, device.ID, newRefreshTokenHash, tokenHash, now, newRefreshExpiresAt); err != nil {
-		log.Printf("ERROR: Failed to create new refresh session: %v", err)
-		http.Error(w, `{"error": "server_error", "error_message": "Failed to create session"}`, http.StatusInternalServerError)
-		return
-	}
-
-	// Mark old refresh session as rotated
+	// Mark old refresh session as rotated and create the new one.
+	// RotateRefreshSession already inserts the new refresh_sessions row itself,
+	// atomically paired with marking the old one rotated (see its own test);
+	// a separate CreateRefreshSession call here would insert a second row
+	// with the same id and fail the UNIQUE constraint. An outer
+	// h.db.BeginTx() around these calls would also check out the pool's only
+	// connection (SetMaxOpenConns(1)) and never release it, since none of the
+	// calls here use that outer tx: every later h.db.* call, including
+	// /readyz's CleanupExpired, would then block forever waiting for a second
+	// connection the same goroutine is already holding.
 	if err := h.db.RotateRefreshSession(session.ID, tokenHash, newRefreshSessionID, newRefreshTokenHash, newRefreshExpiresAt); err != nil {
 		log.Printf("ERROR: Failed to rotate refresh session: %v", err)
-		http.Error(w, `{"error": "server_error", "error_message": "Failed to process request"}`, http.StatusInternalServerError)
-		return
-	}
-
-	if err := tx.Commit(); err != nil {
-		log.Printf("ERROR: Failed to commit transaction: %v", err)
 		http.Error(w, `{"error": "server_error", "error_message": "Failed to process request"}`, http.StatusInternalServerError)
 		return
 	}
