@@ -85,6 +85,8 @@ spec:
           env:
             - name: OPENCLAW_DEBUG
               value: "0"
+            - name: AGGRESSIVE_ROTATION
+              value: {{ .Values.openclaw.aggressiveRotation | quote }}
           envFrom:
             - secretRef:
                 name: {{ include "claw.openclawSecretName" . }}

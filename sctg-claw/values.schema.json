@@ -47,6 +47,10 @@
                 "existingSecret": {
                     "type": "string"
                 },
+                "aggressiveRotation": {
+                    "type": "boolean",
+                    "description": "If true, the gateway will rotate the llm key on every request"
+                },  
                 "secret": {
                     "type": "object",
                     "properties": {
