@@ -48,7 +48,7 @@
                     "type": "string"
                 },
                 "aggressiveRotation": {
-                    "type": "boolean",
+                    "type": "string",
                     "description": "If true, the gateway will rotate the llm key on every request"
                 },  
                 "secret": {

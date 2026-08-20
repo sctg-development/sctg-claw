@@ -51,7 +51,7 @@ service:
 #   --from-literal=POOLSIDE_API_KEYS='poolside-api-key-1,poolside-api-key-2'
 openclaw:
   existingSecret: ""
-  aggressiveRotation: false
+  aggressiveRotation: ""
   secret:
     # Set create to true to let the chart create a Secret from the values below.
     # Do not set existingSecret when create is true.
