@@ -34,15 +34,19 @@ func NewWebSocketProxy(cfg *config.Config, database *db.DB) *WebSocketProxy {
 }
 
 func (p *WebSocketProxy) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
+	remote := clientIP(r)
+
 	// Extract and validate bearer token
 	authHeader := r.Header.Get("Authorization")
 	if authHeader == "" {
+		log.Printf("WARN: WebSocket rejected remote=%s reason=missing_authorization_header", remote)
 		http.Error(w, "Unauthorized: Missing Authorization header", http.StatusUnauthorized)
 		return
 	}
 
 	parts := strings.Split(authHeader, " ")
 	if len(parts) != 2 || parts[0] != "Bearer" {
+		log.Printf("WARN: WebSocket rejected remote=%s reason=invalid_authorization_header", remote)
 		http.Error(w, "Unauthorized: Invalid Authorization header", http.StatusUnauthorized)
 		return
 	}
@@ -59,18 +63,22 @@ func (p *WebSocketProxy) HandleWebSocket(w http.ResponseWriter, r *http.Request)
 	}
 
 	if accessSession == nil {
+		log.Printf("WARN: WebSocket rejected remote=%s reason=invalid_access_token", remote)
 		http.Error(w, "Unauthorized: Invalid access token", http.StatusUnauthorized)
 		return
 	}
 
 	// Check if token is revoked
 	if accessSession.RevokedAt != nil {
+		log.Printf("WARN: WebSocket rejected remote=%s reason=token_revoked device=%s", remote, accessSession.DeviceID)
 		http.Error(w, "Unauthorized: Token revoked", http.StatusUnauthorized)
 		return
 	}
 
 	// Check if token is expired
 	if time.Now().After(accessSession.ExpiresAt) {
+		log.Printf("WARN: WebSocket rejected remote=%s reason=token_expired device=%s expiredAt=%s",
+			remote, accessSession.DeviceID, accessSession.ExpiresAt.Format(time.RFC3339))
 		http.Error(w, "Unauthorized: Token expired", http.StatusUnauthorized)
 		return
 	}
@@ -84,6 +92,8 @@ func (p *WebSocketProxy) HandleWebSocket(w http.ResponseWriter, r *http.Request)
 	}
 
 	if device == nil || device.RevokedAt != nil {
+		log.Printf("WARN: WebSocket rejected remote=%s reason=device_not_found_or_revoked device=%s",
+			remote, accessSession.DeviceID)
 		http.Error(w, "Unauthorized: Device not found or revoked", http.StatusUnauthorized)
 		return
 	}
@@ -102,6 +112,7 @@ func (p *WebSocketProxy) HandleWebSocket(w http.ResponseWriter, r *http.Request)
 			"Email no longer in allow list",
 		)
 
+		log.Printf("WARN: WebSocket rejected remote=%s reason=email_not_allowed device=%s", remote, device.ID)
 		http.Error(w, "Unauthorized: Email not authorized", http.StatusUnauthorized)
 		return
 	}
@@ -245,4 +256,17 @@ func forwardCloseCode(dst *websocket.Conn, readErr error) {
 		websocket.CloseMessage,
 		websocket.FormatCloseMessage(closeErr.Code, closeErr.Text),
 		time.Now().Add(time.Second))
+}
+
+// clientIP mirrors handler.getClientIP (different package, same logic):
+// prefer the original client from X-Forwarded-For (set by Cloudflare), fall
+// back to the raw connection's remote address.
+func clientIP(r *http.Request) string {
+	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+		ips := strings.Split(xff, ",")
+		if len(ips) > 0 {
+			return strings.TrimSpace(ips[0])
+		}
+	}
+	return r.RemoteAddr
 }

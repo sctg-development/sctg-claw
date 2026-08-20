@@ -1,0 +1,168 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Personal build+install script for sctg-claw's own iOS test devices.
+#
+# Builds the OpenClaw app with Development signing (your own Apple Developer
+# team, never the canonical OpenClaw team) and installs + launches it on each
+# named device via devicectl. Purely local Xcode tooling -- no App Store, no
+# TestFlight, nothing leaves your Mac.
+#
+# Usage:
+#   scripts/build-and-deploy --devices BlingFonX,BlackPad,MiniPad
+#
+# Each device must already be paired with this Mac (see `xcrun xctrace list
+# devices`), unlocked, with "Trust This Computer" accepted and Developer Mode
+# enabled (Settings -> Privacy & Security -> Developer Mode) the first time.
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+OPENCLAW_DIR="${ROOT_DIR}/openclaw"
+IOS_DIR="${OPENCLAW_DIR}/apps/ios"
+
+DEFAULT_TEAM_ID="6G4W4D2F29"
+CONFIGURATION="${IOS_CONFIGURATION:-Debug}"
+DERIVED_DATA_DIR="${IOS_DIR}/build/DerivedData"
+
+usage() {
+  cat <<'EOF'
+Usage: scripts/build-and-deploy --devices <name1,name2,...> [options]
+
+Builds the OpenClaw iOS app (personal Development signing) and installs +
+launches it on each named paired device, one build per device.
+
+Options:
+  --devices <names>       Comma-separated device names, exactly as shown by
+                           `xcrun xctrace list devices` (required).
+  --team <id>              Apple Development Team ID. Defaults to
+                           IOS_DEVELOPMENT_TEAM if set, else 6G4W4D2F29.
+  --configuration <cfg>   Debug or Release (default: Debug).
+  -h, --help              Show this help.
+
+Example:
+  scripts/build-and-deploy --devices BlingFonX,BlackPad,MiniPad
+EOF
+}
+
+devices_csv=""
+team_id="${IOS_DEVELOPMENT_TEAM:-${DEFAULT_TEAM_ID}}"
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --devices)
+      [[ $# -ge 2 ]] || { echo "ERROR: --devices requires a value" >&2; exit 1; }
+      devices_csv="$2"
+      shift 2
+      ;;
+    --team)
+      [[ $# -ge 2 ]] || { echo "ERROR: --team requires a value" >&2; exit 1; }
+      team_id="$2"
+      shift 2
+      ;;
+    --configuration)
+      [[ $# -ge 2 ]] || { echo "ERROR: --configuration requires a value" >&2; exit 1; }
+      CONFIGURATION="$2"
+      shift 2
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "ERROR: Unknown argument: $1" >&2
+      usage >&2
+      exit 1
+      ;;
+  esac
+done
+
+if [[ -z "${devices_csv}" ]]; then
+  echo "ERROR: --devices is required" >&2
+  usage >&2
+  exit 1
+fi
+
+if [[ ! -d "${OPENCLAW_DIR}" ]]; then
+  echo "ERROR: openclaw checkout not found at ${OPENCLAW_DIR}" >&2
+  exit 1
+fi
+
+export IOS_DEVELOPMENT_TEAM="${team_id}"
+
+# deploy_one <device-name>: build for that device's destination, install, and
+# launch. Returns non-zero on any failure; never exits the whole script, so
+# one locked/unavailable device doesn't abort the rest of the run.
+deploy_one() {
+  local name="$1"
+
+  "${OPENCLAW_DIR}/scripts/ios-configure-signing.sh" || return 1
+  "${OPENCLAW_DIR}/scripts/ios-write-version-xcconfig.sh" || return 1
+  node "${OPENCLAW_DIR}/scripts/ios-write-swift-filelist.mjs" || return 1
+
+  (
+    cd "${IOS_DIR}"
+    xcodegen generate
+    xcodebuild \
+      -project OpenClaw.xcodeproj \
+      -scheme OpenClaw \
+      -destination "platform=iOS,name=${name}" \
+      -configuration "${CONFIGURATION}" \
+      -derivedDataPath "${DERIVED_DATA_DIR}" \
+      build
+  ) || return 1
+
+  local app_path="${DERIVED_DATA_DIR}/Build/Products/${CONFIGURATION}-iphoneos/OpenClaw.app"
+  if [[ ! -d "${app_path}" ]]; then
+    echo "ERROR: [${name}] built app not found at ${app_path}" >&2
+    return 1
+  fi
+
+  local bundle_id
+  bundle_id="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "${app_path}/Info.plist" 2>/dev/null || true)"
+  if [[ -z "${bundle_id}" ]]; then
+    echo "ERROR: [${name}] built app is missing CFBundleIdentifier" >&2
+    return 1
+  fi
+
+  echo "==> [${name}] Installing ${bundle_id}..."
+  if ! xcrun devicectl device install app --device "${name}" "${app_path}"; then
+    echo "WARN: [${name}] install failed -- unlocked? trusted? Developer Mode on?" >&2
+    return 1
+  fi
+
+  echo "==> [${name}] Launching..."
+  if ! xcrun devicectl device process launch --device "${name}" "${bundle_id}"; then
+    echo "WARN: [${name}] launch failed" >&2
+    return 1
+  fi
+
+  return 0
+}
+
+IFS=',' read -r -a raw_device_names <<<"${devices_csv}"
+succeeded=()
+failed=()
+
+for raw_name in "${raw_device_names[@]}"; do
+  name="$(echo "${raw_name}" | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//')"
+  [[ -n "${name}" ]] || continue
+
+  echo
+  echo "==================== ${name} (team=${team_id}) ===================="
+  if deploy_one "${name}"; then
+    echo "==> [${name}] OK"
+    succeeded+=("${name}")
+  else
+    failed+=("${name}")
+  fi
+done
+
+echo
+echo "======================================================"
+if [[ ${#succeeded[@]} -gt 0 ]]; then
+  echo "Succeeded: ${succeeded[*]}"
+fi
+if [[ ${#failed[@]} -gt 0 ]]; then
+  echo "Failed: ${failed[*]}" >&2
+  exit 1
+fi

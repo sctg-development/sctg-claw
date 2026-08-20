@@ -244,3 +244,8 @@ helm upgrade --install sctg-claw ./sctg-claw -f .values.yaml --namespace claw --
 - **Open item**: `gateway.auth.mode: trusted-proxy` trusts the `X-Forwarded-Email` header from any caller inside `gateway.trustedProxies` (currently the whole `10.0.0.0/8` pod CIDR by default). A `NetworkPolicy` restricting which pods can reach the OpenClaw `Service` to oauth2-proxy and mobile-auth-broker only is the natural hardening step before this is exposed beyond a single-tenant dev cluster.
 - **Open item**: `sctg-claw/values.schema.json` documents the chart's own values but intentionally leaves the vendored `cloudflared`/`oauth2-proxy` sub-chart values and `openclaw.config`'s internals loosely typed, since those are owned upstream.
 - **Mobile Auth Broker**: The mobile-auth-broker service is currently in development. When enabled, it provides GitHub Device Flow authentication for iOS clients with the same security guarantees as the browser flow (trusted-proxy mode, no shared tokens).
+
+## Building the iOS App 
+```bash
+./scripts/build-and-deploy --devices MyIphone
+```
