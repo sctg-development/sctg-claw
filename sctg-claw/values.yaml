@@ -68,6 +68,7 @@ openclaw:
     poolsideApiKeys: ""
     exaApiKeys: ""
     firecrawlApiKeys: ""
+    googlePlacesApiKeys: ""
   # This map is rendered as /home/node/.openclaw/openclaw.json.
   # Add any supported OpenClaw configuration section here. Use SecretRef objects
   # for sensitive values, for example: { source: env, provider: default, id: TOKEN }.
