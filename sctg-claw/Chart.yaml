@@ -2,7 +2,7 @@ apiVersion: v2
 name: claw
 description: "Helm chart to deploy OpenClaw Gateway with optional mobile authentication broker"
 type: application
-version: 0.5.8
+version: 0.5.9
 appVersion: "2026.8.1"
 
 dependencies:
