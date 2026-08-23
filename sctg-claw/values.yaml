@@ -20,7 +20,6 @@
 # The Cloudflare and OAuth routes assume the Helm release name "sctg-claw".
 
 replicaCount: 1
-
 strategy:
   type: Recreate
 
@@ -50,6 +49,7 @@ service:
 #   --from-literal=COHERE_API_KEYS='cohere-api-key-1,cohere-api-key-2' \
 #   --from-literal=POOLSIDE_API_KEYS='poolside-api-key-1,poolside-api-key-2'
 openclaw:
+  overrideCommand: []
   existingSecret: ""
   aggressiveRotation: ""
   secret:
@@ -307,7 +307,7 @@ openclaw:
 
 persistence:
   enabled: true
-  mountPath: /home/node/.openclaw
+  mountPath: /home/node
   size: 5Gi
   storageClass: ""
   accessModes:

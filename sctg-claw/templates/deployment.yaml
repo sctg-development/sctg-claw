@@ -76,6 +76,9 @@ spec:
             preStop:
               exec:
                 command: ["/bin/sh", "-c", "/usr/local/bin/openclaw gateway stop"]
+          {{- if .Values.openclaw.overrideCommand }}
+          command: {{ .Values.openclaw.overrideCommand | toYaml | nindent 10 }}
+          {{- end }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
