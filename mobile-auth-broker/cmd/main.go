@@ -61,25 +61,25 @@ func main() {
 
 	// WebSocket route - must come after other routes
 	r.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		// Check if this is a WebSocket upgrade request
 		if isWebSocketUpgrade(r) {
 			wsProxy.HandleWebSocket(w, r)
 			return
 		}
-		
-		// For non-WebSocket requests to root, return 404
-		http.NotFound(w, r)
+
+		// Not a WebSocket upgrade: forward to the Gateway's Dashboard/Canvas
+		// Control UI (HandleHTTP scopes this to GET/HEAD and denies the
+		// Gateway's wider chat/tool/admin HTTP surface on its own).
+		wsProxy.HandleHTTP(w, r)
 	})
 
-	// Catch-all for other paths - return 404
+	// Catch-all for other paths
 	r.NotFoundHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Check if this is a WebSocket upgrade request for any path
 		if isWebSocketUpgrade(r) {
 			wsProxy.HandleWebSocket(w, r)
 			return
 		}
-		
-		http.NotFound(w, r)
+
+		wsProxy.HandleHTTP(w, r)
 	})
 
 	// Create server
