@@ -70,7 +70,8 @@
                         "exaApiKeys": { "type": "string" },
                         "firecrawlApiKeys": { "type": "string" },
                         "googlePlacesApiKeys": { "type": "string" },
-                        "elevenlabsApiKeys": { "type": "string" }
+                        "elevenlabsApiKeys": { "type": "string" },
+                        "ghToken": { "type": "string" }
                     }
                 },
                 "config": {

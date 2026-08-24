@@ -54,9 +54,9 @@ spec:
             - -c
             - |
               set -e
-              mkdir -p {{ $.Values.persistence.mountPath }}/workspace
+              mkdir -p {{ $.Values.persistence.mountPath }}/.openclaw/workspace
               {{- range $filename, $content := .Values.openclaw.workspaceFiles }}
-              [ -f {{ $.Values.persistence.mountPath }}/workspace/{{ $filename }} ] || cp /openclaw-config/{{ $filename }} {{ $.Values.persistence.mountPath }}/workspace/{{ $filename }}
+              [ -f {{ $.Values.persistence.mountPath }}/.openclaw/workspace/{{ $filename }} ] || cp /openclaw-config/{{ $filename }} {{ $.Values.persistence.mountPath }}/.openclaw/workspace/{{ $filename }}
               {{- end }}
           securityContext:
             runAsUser: 1000
@@ -75,7 +75,7 @@ spec:
           lifecycle:
             preStop:
               exec:
-                command: ["/bin/sh", "-c", "/usr/local/bin/openclaw gateway stop"]
+                command: ["/bin/sh", "-c", "'mkdir -p /tmp/openclaw-compile-cache && /usr/local/bin/openclaw gateway stop'"]
           {{- if .Values.openclaw.overrideCommand }}
           command: {{ .Values.openclaw.overrideCommand | toYaml | nindent 10 }}
           {{- end }}
@@ -86,10 +86,19 @@ spec:
               name: gateway
           {{- if include "claw.openclawSecretName" . }}
           env:
+            - name: NODE_COMPILE_CACHE
+              value: /tmp/openclaw-compile-cache
             - name: OPENCLAW_DEBUG
               value: "0"
             - name: AGGRESSIVE_ROTATION
               value: {{ .Values.openclaw.aggressiveRotation | quote }}
+            {{- if .Values.openclaw.ghToken }}
+            - name: GH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "claw.openclawSecretName" . }}
+                  key: ghToken 
+            {{- end }}
           envFrom:
             - secretRef:
                 name: {{ include "claw.openclawSecretName" . }}
