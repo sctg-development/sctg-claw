@@ -410,7 +410,18 @@ RUN --mount=type=cache,id=openclaw-bookworm-apt-cache,target=/var/cache/apt,shar
     apt update && apt install 1password-cli && \
     curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | gpg --dearmor -o /usr/share/keyrings/cloud.google.gpg && \
     echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main" | tee -a /etc/apt/sources.list.d/google-cloud-sdk.list && \ 
-    apt-get update && apt-get install google-cloud-cli
+    apt-get update && apt-get install google-cloud-cli && \
+    if [ "${TARGETARCH}" = "amd64" ]; then \
+      curl -fsSL https://github.com/voydz/garmin-cli/releases/download/v0.3.1/garmin-cli-0.3.1-linux-x86_64.tar.gz -o /tmp/garmin-cli.tar.gz && \
+      tar -xzf /tmp/garmin-cli.tar.gz -O gc > /usr/local/bin/gc && \ 
+      chmod +x /usr/local/bin/gc && \
+      rm -f /tmp/garmin-cli.tar.gz; \
+    else \
+      curl -fsSL https://github.com/voydz/garmin-cli/releases/download/v0.3.1/garmin-cli-0.3.1-linux-aarch64.tar.gz -o /tmp/garmin-cli.tar.gz && \  
+    tar -xzf /tmp/garmin-cli.tar.gz -O gc > /usr/local/bin/gc && \
+    chmod +x /usr/local/bin/gc && \
+    rm -f /tmp/garmin-cli.tar.gz; \
+    fi
 
 # Expose the CLI binary without requiring npm global writes as non-root.
 RUN ln -sf /app/openclaw.mjs /usr/local/bin/openclaw \
