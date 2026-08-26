@@ -443,6 +443,7 @@ RUN install -d -m 0755 -o node -g node /home/node/.config && \
     stat -c '%U:%G %a' /home/node/.config/openclaw | grep -qx 'node:node 700'
 
 ENV NODE_ENV=production
+ENV VNC_PASSWORD="openclaw"
 
 # Security hardening: Run as non-root user
 # The node:24-bookworm image includes a 'node' user (uid 1000)
@@ -464,4 +465,4 @@ USER node
 HEALTHCHECK --interval=3m --timeout=10s --start-period=15s --retries=3 \
   CMD ["node", "dist/docker-healthcheck.js"]
 ENTRYPOINT ["tini", "-s", "--"]
-CMD ["sh", "-c", "Xvfb :99 -screen 0 1920x1080x24 & x11vnc -display :99 -forever -nopw -rfbport 5900 & node openclaw.mjs gateway"]
+CMD ["sh", "-c", "Xvfb :99 -screen 0 1920x1080x24 & x11vnc -display :99 -forever -passwd ${VNC_PASSWORD} -rfbport 5900 & node openclaw.mjs gateway"]

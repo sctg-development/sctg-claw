@@ -84,8 +84,14 @@ spec:
           ports:
             - containerPort: {{ .Values.service.port }}
               name: gateway
-          {{- if include "claw.openclawSecretName" . }}
+            - containerPort: 5900
+              name: vnc
           env:
+            {{- if .Values.openclaw.vnc.password }}
+            - name: VNC_PASSWORD
+              value: {{ .Values.openclaw.vnc.password | quote }}
+            {{- end }}
+            {{- if include "claw.openclawSecretName" . }}
             - name: NODE_COMPILE_CACHE
               value: /tmp/openclaw-compile-cache
             - name: OPENCLAW_DEBUG
@@ -104,6 +110,8 @@ spec:
             - name: GARMIN_PASSWORD
               value: {{ .Values.openclaw.secret.garminPassword | quote }}
             {{- end }}
+            {{- end }}
+          {{- if include "claw.openclawSecretName" . }}
           envFrom:
             - secretRef:
                 name: {{ include "claw.openclawSecretName" . }}

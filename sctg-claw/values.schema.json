@@ -81,6 +81,17 @@
                     "description": "Freeform, rendered as-is into /home/node/.openclaw/openclaw.json. See the OpenClaw configuration reference for supported keys (gateway, agents, models, etc.).",
                     "additionalProperties": true
                 },
+                "vnc": {
+                    "type": "object",
+                    "description": "VNC server (x11vnc) settings for browser automation debugging. macOS Finder/Screen Sharing requires a password; the default -nopw configuration causes the client to disconnect during ClientInit.",
+                    "properties": {
+                        "password": {
+                            "type": "string",
+                            "description": "Password for the x11vnc VNC server (RFB auth). Max 8 characters for -passwd; use a longer password with -passwdfile via a custom overrideCommand.",
+                            "default": "openclaw"
+                        }
+                    }
+                },
                 "workspaceFiles": {
                     "type": "object",
                     "description": "Workspace bootstrap files (AGENTS.md, SOUL.md, IDENTITY.md, USER.md) pre-seeded into /home/node/.openclaw/workspace/ by the init container on first boot. Existing files in the PVC are never overwritten (seed-if-missing). To reseed after changing values, delete the file from the PVC and restart the pod.",

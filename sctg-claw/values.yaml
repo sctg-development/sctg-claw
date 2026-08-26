@@ -91,13 +91,19 @@ openclaw:
           id: OPENCLAW_GATEWAY_TOKEN
       controlUi:
         enabled: true
-    # Skip automatic workspace bootstrap (BOOTSTRAP.md birth sequence, template
-    # seeding of AGENTS.md/SOUL.md/IDENTITY.md/USER.md). Pre-seed those files
-    # via the init container from openclaw.workspaceFiles instead, so the agent
-    # never triggers the first-message birth sequence in a containerized deployment.
-    agents:
-      defaults:
-        skipBootstrap: true
+  # VNC server for browser automation debugging (x11vnc).
+  # macOS Finder/Screen Sharing requires a password; -nopw causes the client to
+  # disconnect during ClientInit. Set a VNC password here (max 8 chars for RFB
+  # auth via -passwd; use -passwdfile for longer).
+  vnc:
+    password: "openclaw"
+  # Skip automatic workspace bootstrap (BOOTSTRAP.md birth sequence, template
+  # seeding of AGENTS.md/SOUL.md/IDENTITY.md/USER.md). Pre-seed those files
+  # via the init container from openclaw.workspaceFiles instead, so the agent
+  # never triggers the first-message birth sequence in a containerized deployment.
+  agents:
+    defaults:
+      skipBootstrap: true
   # Workspace bootstrap files pre-seeded into /home/node/.openclaw/workspace/ by the
   # init container on first boot (seed-if-missing: existing PVC files are preserved).
   # Override any of these in your values to customize the agent's personality and
