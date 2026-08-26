@@ -92,12 +92,17 @@ spec:
               value: "0"
             - name: AGGRESSIVE_ROTATION
               value: {{ .Values.openclaw.aggressiveRotation | quote }}
-            {{- if .Values.openclaw.ghToken }}
+            {{- if .Values.openclaw.secret.ghToken }}
             - name: GH_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "claw.openclawSecretName" . }}
-                  key: ghToken 
+              value: {{ .Values.openclaw.secret.ghToken | quote }}  
+            {{- end }}
+            {{- if .Values.openclaw.secret.garminEmail }}
+            - name: GARMIN_EMAIL
+              value: {{ .Values.openclaw.secret.garminEmail | quote }}
+            {{- end }}
+            {{- if .Values.openclaw.secret.garminPassword }}
+            - name: GARMIN_PASSWORD
+              value: {{ .Values.openclaw.secret.garminPassword | quote }}
             {{- end }}
           envFrom:
             - secretRef:

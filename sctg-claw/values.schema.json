@@ -71,7 +71,9 @@
                         "firecrawlApiKeys": { "type": "string" },
                         "googlePlacesApiKeys": { "type": "string" },
                         "elevenlabsApiKeys": { "type": "string" },
-                        "ghToken": { "type": "string" }
+                        "ghToken": { "type": "string" },
+                        "garminEmail": { "type": "string" },
+                        "garminPassword": { "type": "string" }
                     }
                 },
                 "config": {
