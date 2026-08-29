@@ -19,8 +19,11 @@
 # fails with e.g. `"/extensions": not found` — use the wrapper script instead:
 #   ./docker-build.sh                     # local build
 #   ./docker-build.sh --push              # multi-arch buildx build + push
-# ...or invoke docker directly with the explicit context:
-#   docker build -f Dockerfile -t sctg/claw:latest ./openclaw
+# ...or invoke docker directly with the explicit context, plus the extra
+# named build context the `gc-build` stage needs for the `garmin-cli`
+# submodule (a sibling of `openclaw/`, not inside it):
+#   docker build -f Dockerfile -t sctg/claw:latest \
+#     --build-context garmin-cli=./garmin-cli ./openclaw
 #
 # ---------------------------------------------------------------------------
 # Everything up to the "sctg-claw additions" marker below is openclaw/Dockerfile
@@ -230,6 +233,36 @@ RUN --mount=type=cache,id=openclaw-pnpm-store,target=/root/.local/share/pnpm/sto
       /app/node_modules/.pnpm/openclaw@*/node_modules/openclaw && \
     node scripts/check-package-dist-imports.mjs /app
 
+# ── garmin-cli (gc): built from the pinned `garmin-cli` submodule ──────────
+# sctg-claw addition (see marker further below) - placed here, ahead of the
+# upstream runtime stages, so it doesn't have to interleave with them.
+#
+# The main build context is `./openclaw` (see header comment above), which
+# does not contain the `garmin-cli` submodule - a sibling directory at the
+# repo root. Its source is supplied through a second, named build context
+# instead: see docker-build.sh's `--build-context garmin-cli=./garmin-cli`.
+# A plain `docker build -f Dockerfile ./openclaw` (bypassing the wrapper
+# script) must add the same `--build-context garmin-cli=<path-to-submodule>`.
+#
+# Built inside bookworm (glibc 2.36) to match the bookworm-slim runtime image
+# below. This differs from garmin-cli's own release binaries, which are
+# built on ubuntu:22.04 for broader glibc compatibility across arbitrary
+# Homebrew hosts (see garmin-cli/.github/workflows/release.yml) - a
+# constraint that doesn't apply here since this binary only ever runs inside
+# this same image.
+FROM ${OPENCLAW_NODE_BOOKWORM_IMAGE} AS gc-build
+RUN --mount=type=cache,id=openclaw-bookworm-apt-cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,id=openclaw-bookworm-apt-lists,target=/var/lib/apt,sharing=locked \
+    apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+      ca-certificates curl make binutils xz-utils && \
+    curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR=/usr/local/bin sh
+COPY --from=garmin-cli / /src/garmin-cli
+WORKDIR /src/garmin-cli
+RUN uv python install 3.13 && \
+    make setup && \
+    make build
+
 # ── Runtime base image ──────────────────────────────────────────
 FROM ${OPENCLAW_NODE_BOOKWORM_SLIM_IMAGE} AS base-runtime
 ARG OPENCLAW_NODE_BOOKWORM_SLIM_DIGEST
@@ -423,18 +456,11 @@ RUN --mount=type=cache,id=openclaw-bookworm-apt-cache,target=/var/cache/apt,shar
     apt update && apt install 1password-cli && \
     curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | gpg --dearmor -o /usr/share/keyrings/cloud.google.gpg && \
     echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main" | tee -a /etc/apt/sources.list.d/google-cloud-sdk.list && \ 
-    apt-get update && apt-get install google-cloud-cli && \
-    if [ "${TARGETARCH}" = "amd64" ]; then \
-      curl -fsSL https://github.com/voydz/garmin-cli/releases/download/v0.3.1/garmin-cli-0.3.1-linux-x86_64.tar.gz -o /tmp/garmin-cli.tar.gz && \
-      tar -xzf /tmp/garmin-cli.tar.gz -O gc > /usr/local/bin/gc && \ 
-      chmod +x /usr/local/bin/gc && \
-      rm -f /tmp/garmin-cli.tar.gz; \
-    else \
-      curl -fsSL https://github.com/voydz/garmin-cli/releases/download/v0.3.1/garmin-cli-0.3.1-linux-aarch64.tar.gz -o /tmp/garmin-cli.tar.gz && \  
-    tar -xzf /tmp/garmin-cli.tar.gz -O gc > /usr/local/bin/gc && \
-    chmod +x /usr/local/bin/gc && \
-    rm -f /tmp/garmin-cli.tar.gz; \
-    fi
+    apt-get update && apt-get install google-cloud-cli
+
+# gc (garmin-cli), built from the submodule source in the gc-build stage above.
+COPY --from=gc-build /src/garmin-cli/dist/gc /usr/local/bin/gc
+RUN chmod +x /usr/local/bin/gc
 
 # Expose the CLI binary without requiring npm global writes as non-root.
 RUN ln -sf /app/openclaw.mjs /usr/local/bin/openclaw \
