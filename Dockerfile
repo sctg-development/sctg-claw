@@ -334,9 +334,10 @@ RUN --mount=type=cache,id=openclaw-bookworm-apt-cache,target=/var/cache/apt,shar
     --mount=type=cache,id=openclaw-bookworm-apt-lists,target=/var/lib/apt,sharing=locked \
     if [ -n "$OPENCLAW_INSTALL_BROWSER" ]; then \
       apt-get update && \
-      DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends xvfb && \
+      DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends xvfb libgtk-3-0t64 && \
       mkdir -p "$PLAYWRIGHT_BROWSERS_PATH" && \
       node /app/node_modules/playwright-core/cli.js install --with-deps chromium && \
+      node /app/node_modules/playwright-core/cli.js install --with-deps firefox && \
       chown -R node:node "$PLAYWRIGHT_BROWSERS_PATH"; \
     fi
 
