@@ -324,6 +324,19 @@ RUN --mount=type=cache,id=openclaw-bookworm-apt-cache,target=/var/cache/apt,shar
       python3 -m pip install --no-cache-dir --break-system-packages $OPENCLAW_IMAGE_PIP_PACKAGES; \
     fi
 
+# Add firefox repository since bookworm-slim does not include it by default.
+RUN --mount=type=cache,id=openclaw-bookworm-apt-cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,id=openclaw-bookworm-apt-lists,target=/var/lib/apt,sharing=locked \
+    apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+      apt-transport-https gnupg && \
+    curl -fsSL https://packages.mozilla.org/apt/repo-signing-key.gpg  | tee /etc/apt/keyrings/packages.mozilla.org.asc > /dev/null && \
+    mkdir -p /root/.gnupg && chmod 700 /root/.gnupg && \
+    gpg -n -q --import --import-options import-show /etc/apt/keyrings/packages.mozilla.org.asc && \
+    echo "deb [signed-by=/etc/apt/keyrings/packages.mozilla.org.asc] https://packages.mozilla.org/apt mozilla main" | tee -a /etc/apt/sources.list.d/mozilla.list > /dev/null && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends firefox
+
 # Optionally install Chromium and Xvfb for browser automation.
 # Build with: docker build --build-arg OPENCLAW_INSTALL_BROWSER=1 ...
 # Adds ~300MB but eliminates the 60-90s Playwright install on every container start.
