@@ -2,3 +2,6 @@
 	path = openclaw
 	url = git@github.com:TEA-ching/openclaw.git
 	branch = sctg-claw
+[submodule "garmin-cli"]
+	path = garmin-cli
+	url = git@github.com:sctg-development/garmin-cli.git
