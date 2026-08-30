@@ -11,6 +11,10 @@ spec:
       targetPort: gateway
       protocol: TCP
       name: http
+    - port: {{ .Values.service.sandboxPort }}
+      targetPort: mcp-sandbox
+      protocol: TCP
+      name: mcp-sandbox
   selector:
     app.kubernetes.io/name: {{ include "claw.name" . }}
     app.kubernetes.io/instance: {{ .Release.Name }}

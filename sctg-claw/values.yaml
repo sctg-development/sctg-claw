@@ -33,6 +33,10 @@ imagePullSecrets: []
 service:
   type: ClusterIP
   port: 18789
+  # MCP Apps / dashboard widget sandbox listener (gateway port + 1 by default in
+  # OpenClaw). Must stay a distinct, unauthenticated origin from `port` above -
+  # see openclaw.config.mcp.apps in values docs.
+  sandboxPort: 18790
 
 # Name of a pre-existing secret containing OpenClaw and provider environment variables.
 # Example keys: MISTRAL_API_KEYS, COHERE_API_KEYS, POOLSIDE_API_KEYS.

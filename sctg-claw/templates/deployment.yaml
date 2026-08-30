@@ -44,7 +44,6 @@ spec:
       affinity:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- if .Values.openclaw.workspaceFiles }}
       initContainers:
         - name: init-workspace
           image: {{ .Values.openclaw.initContainer.image | default "busybox:1.37" }}
@@ -55,6 +54,15 @@ spec:
             - |
               set -e
               mkdir -p {{ $.Values.persistence.mountPath }}/.openclaw/workspace
+              # OpenClaw's canonical config lives at <state-dir>/openclaw.json
+              # (~/.openclaw/openclaw.json), never at the ConfigMap-mounted
+              # {{ $.Values.persistence.mountPath }}/openclaw.json - that path
+              # is not one of its resolved config candidates. Seed it here,
+              # only when missing: once OpenClaw has written this file, it is
+              # the source of truth and survives ConfigMap edits/pod restarts.
+              # To pick up a ConfigMap change, delete the persisted copy first:
+              #   kubectl exec <pod> -c gateway -- rm /home/node/.openclaw/openclaw.json
+              [ -f {{ $.Values.persistence.mountPath }}/.openclaw/openclaw.json ] || cp /openclaw-config/openclaw.json {{ $.Values.persistence.mountPath }}/.openclaw/openclaw.json
               {{- range $filename, $content := .Values.openclaw.workspaceFiles }}
               [ -f {{ $.Values.persistence.mountPath }}/.openclaw/workspace/{{ $filename }} ] || cp /openclaw-config/{{ $filename }} {{ $.Values.persistence.mountPath }}/.openclaw/workspace/{{ $filename }}
               {{- end }}
@@ -69,7 +77,6 @@ spec:
             - name: openclaw-config
               mountPath: /openclaw-config
               readOnly: true
-      {{- end }}
       containers:
         - name: gateway
           lifecycle:
@@ -84,6 +91,8 @@ spec:
           ports:
             - containerPort: {{ .Values.service.port }}
               name: gateway
+            - containerPort: {{ .Values.service.sandboxPort }}
+              name: mcp-sandbox
             - containerPort: 5900
               name: vnc
           env:
@@ -123,10 +132,6 @@ spec:
           volumeMounts:
             - name: data
               mountPath: {{ .Values.persistence.mountPath }}
-            - name: openclaw-config-subpath
-              mountPath: {{ .Values.persistence.mountPath }}/openclaw.json
-              subPath: openclaw.json
-              readOnly: true
           {{- if .Values.livenessProbe.enabled }}
           livenessProbe:
             httpGet:
@@ -173,12 +178,6 @@ spec:
         - name: openclaw-config
           configMap:
             name: {{ include "claw.openclawConfigMapName" . }}
-        - name: openclaw-config-subpath
-          configMap:
-            name: {{ include "claw.openclawConfigMapName" . }}
-            items:
-              - key: openclaw.json
-                path: openclaw.json
         {{- if .Values.signalCli.enabled }}
         - name: signal-cli-data
           {{- if .Values.signalCli.persistence.enabled }}
