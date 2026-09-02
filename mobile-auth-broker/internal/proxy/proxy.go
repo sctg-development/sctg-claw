@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"log"
+	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -89,9 +90,17 @@ func (p *WebSocketProxy) HandleWebSocket(w http.ResponseWriter, r *http.Request)
 		gatewayURL = "wss://" + strings.TrimPrefix(gatewayURL, "https://")
 	}
 
-	// Build headers for Gateway
+	// Build headers for Gateway. X-Forwarded-For is load-bearing: the Gateway's
+	// ingress-attribution only trusts this proxy's peer IP (in its
+	// trustedProxies list) when a forwarded-for chain is also present --
+	// without it, attribution fails closed with 403 even though the peer is
+	// trusted. HandleHTTP gets this for free from httputil.ReverseProxy;
+	// the hand-rolled WebSocket dial here does not, so it must set it explicitly.
 	gatewayHeaders := http.Header{
 		"X-Forwarded-Email": []string{device.Email},
+		"X-Forwarded-For":   []string{remote},
+		"X-Forwarded-Proto": []string{"https"},
+		"X-Forwarded-Host":  []string{p.config.Hostname},
 		"Host":              []string{p.config.Hostname},
 	}
 
@@ -333,6 +342,11 @@ func clientIP(r *http.Request) string {
 		if len(ips) > 0 {
 			return strings.TrimSpace(ips[0])
 		}
+	}
+	// RemoteAddr is "ip:port"; the Gateway's X-Forwarded-For parser expects a
+	// bare IP, so strip the port instead of forwarding it as part of the host.
+	if host, _, err := net.SplitHostPort(r.RemoteAddr); err == nil {
+		return host
 	}
 	return r.RemoteAddr
 }
