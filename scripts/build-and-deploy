@@ -24,6 +24,69 @@ DEFAULT_TEAM_ID="6G4W4D2F29"
 CONFIGURATION="${IOS_CONFIGURATION:-Debug}"
 DERIVED_DATA_DIR="${IOS_DIR}/build/DerivedData"
 
+# apps/swabble and apps/shared/OpenClawKit can declare a `swift-tools-version`
+# newer than what this Mac's Xcode bundles (Xcode only ships a matching
+# Swift 6.3 compiler starting with 26.4, which requires macOS Tahoe 26.2+ --
+# unavailable on older/Intel Macs). Xcode's IDE package-graph resolution for
+# xcodeproj-embedded SPM dependencies always evaluates the manifest with its
+# own bundled toolchain, regardless of TOOLCHAINS/-toolchain -- an installed
+# standalone toolchain (e.g. via `swiftly install 6.3`) satisfies neither the
+# resolution gate (ignored) nor the link step after (open-source toolchains
+# lack Apple's proprietary linker). Only the declared version can pass the
+# gate, so floor it to the bundled compiler's own version for the duration
+# of the build and restore the originals afterward regardless of outcome.
+# Safe only because these two manifests' tools-version bumps have so far been
+# mechanical dependency-refresh bumps, not actual 6.3-only language syntax;
+# a real compile error after this flooring means that has changed.
+IOS_SWIFT_MANIFEST_FILES=(
+  "${OPENCLAW_DIR}/apps/swabble/Package.swift"
+  "${OPENCLAW_DIR}/apps/shared/OpenClawKit/Package.swift"
+)
+ios_manifest_backups=()
+
+swift_tools_major_minor() {
+  local swift_bin="$1"
+  local version_output
+  version_output="$("${swift_bin}" --version 2>&1)" || return 1
+  printf '%s\n' "${version_output}" | sed -nE 's/.*Apple Swift version ([0-9]+)\.([0-9]+).*/\1 \2/p' | head -n 1
+}
+
+restore_ios_manifest_tools_versions() {
+  local manifest
+  for manifest in "${ios_manifest_backups[@]}"; do
+    if [[ -f "${manifest}.build-and-deploy.orig" ]]; then
+      mv "${manifest}.build-and-deploy.orig" "${manifest}"
+    fi
+  done
+  ios_manifest_backups=()
+}
+trap restore_ios_manifest_tools_versions EXIT
+
+lower_ios_manifest_tools_versions_if_needed() {
+  local bundled_swift bundled_major bundled_minor manifest first_line declared_major declared_minor
+
+  bundled_swift="$(xcrun --find swift 2>/dev/null || true)"
+  [[ -n "${bundled_swift}" ]] || return 0
+  read -r bundled_major bundled_minor <<<"$(swift_tools_major_minor "${bundled_swift}")" || return 0
+  [[ -n "${bundled_major}" && -n "${bundled_minor}" ]] || return 0
+
+  for manifest in "${IOS_SWIFT_MANIFEST_FILES[@]}"; do
+    [[ -f "${manifest}" ]] || continue
+    first_line="$(head -n 1 "${manifest}")"
+    [[ "${first_line}" =~ ^//\ swift-tools-version:\ ([0-9]+)\.([0-9]+) ]] || continue
+    declared_major="${BASH_REMATCH[1]}"
+    declared_minor="${BASH_REMATCH[2]}"
+    if ((declared_major < bundled_major)) ||
+      ((declared_major == bundled_major && declared_minor <= bundled_minor)); then
+      continue
+    fi
+    echo "⚠️  ${manifest} declares swift-tools-version ${declared_major}.${declared_minor}, newer than this Mac's bundled Swift ${bundled_major}.${bundled_minor}; flooring it for this build only (restored after)" >&2
+    cp "${manifest}" "${manifest}.build-and-deploy.orig"
+    ios_manifest_backups+=("${manifest}")
+    sed -i '' "1s/.*/\\/\\/ swift-tools-version: ${bundled_major}.${bundled_minor}/" "${manifest}"
+  done
+}
+
 usage() {
   cat <<'EOF'
 Usage: scripts/build-and-deploy --devices <name1,name2,...> [options]
@@ -98,6 +161,7 @@ deploy_one() {
   "${OPENCLAW_DIR}/scripts/ios-configure-signing.sh" || return 1
   "${OPENCLAW_DIR}/scripts/ios-write-version-xcconfig.sh" || return 1
   node "${OPENCLAW_DIR}/scripts/ios-write-swift-filelist.mjs" || return 1
+  lower_ios_manifest_tools_versions_if_needed
 
   (
     cd "${IOS_DIR}"
