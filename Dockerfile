@@ -533,6 +533,12 @@ ENV VNC_PASSWORD="openclaw"
 # This reduces the attack surface by preventing container escape via root privileges
 USER node
 
+# Interactive `kubectl exec -it ... -- bash` sessions don't inherit CMD's
+# runtime umask (a fresh exec, not a child of the gateway process), so op's
+# config file can still land at the default 644 there and get rejected. Cover
+# that path too: bash sources ~/.bashrc for every interactive shell.
+RUN echo 'umask 077' >> /home/node/.bashrc
+
 # Verify the shipped toolchain needs no privileged writes or first-run downloads.
 RUN COREPACK_ENABLE_NETWORK=0 PNPM_CONFIG_OFFLINE=true pnpm --version
 
@@ -552,4 +558,8 @@ RUN COREPACK_ENABLE_NETWORK=0 PNPM_CONFIG_OFFLINE=true pnpm --version
 HEALTHCHECK --interval=3m --timeout=10s --start-period=15s --retries=3 \
   CMD ["node", "dist/docker-healthcheck.js"]
 ENTRYPOINT ["tini", "-s", "--"]
-CMD ["sh", "-c", "Xvfb :99 -screen 0 1920x1080x24 & fluxbox -display :99 & x11vnc -display :99 -forever -passwd ${VNC_PASSWORD} -rfbport 5900 & node openclaw.mjs gateway"]
+# umask 077 so every file created at runtime (op's own config, not just ours)
+# defaults to owner-only. Without it, the shell's default 022 umask leaves
+# op's first-run config at 644 and `op` refuses to use it: "cannot read
+# config ... because its permissions are too broad".
+CMD ["sh", "-c", "umask 077; Xvfb :99 -screen 0 1920x1080x24 & fluxbox -display :99 & x11vnc -display :99 -forever -passwd ${VNC_PASSWORD} -rfbport 5900 & node openclaw.mjs gateway"]
