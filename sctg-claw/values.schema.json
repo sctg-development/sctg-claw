@@ -73,7 +73,11 @@
                         "elevenlabsApiKeys": { "type": "string" },
                         "ghToken": { "type": "string" },
                         "garminEmail": { "type": "string" },
-                        "garminPassword": { "type": "string" }
+                        "garminPassword": { "type": "string" },
+                        "onePasswordServiceAccountToken": {
+                            "type": "string",
+                            "description": "1Password Service Account token (OP_SERVICE_ACCOUNT_TOKEN) for the op CLI installed by the Dockerfile; enables non-interactive `op read`/`op run` inside the container."
+                        }
                     }
                 },
                 "config": {

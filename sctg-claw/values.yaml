@@ -78,6 +78,12 @@ openclaw:
     ghToken: ""
     garminEmail: ""
     garminPassword: ""
+    # 1Password Service Account token for the `op` CLI installed by the Dockerfile.
+    # Create one at https://my.1password.com/service-accounts (or your Business
+    # account) and grant it read access to only the vaults this gateway needs.
+    # Once set, `op read op://vault/item/field` and `op run -- <cmd>` work
+    # non-interactively inside the container -- no `op signin` needed.
+    onePasswordServiceAccountToken: ""
   # This map is rendered as /home/node/.openclaw/openclaw.json.
   # Add any supported OpenClaw configuration section here. Use SecretRef objects
   # for sensitive values, for example: { source: env, provider: default, id: TOKEN }.
