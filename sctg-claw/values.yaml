@@ -78,6 +78,14 @@ openclaw:
     ghToken: ""
     garminEmail: ""
     garminPassword: ""
+    # KeypoolLive vault (git@github.com:sctg-development/ai-proxy-cloudflare.git):
+    # when both are set, the container resolves mistralApiKeys/cohereApiKeys/
+    # poolsideApiKeys/firecrawlApiKeys/exaApiKeys above from this encrypted
+    # vault at startup instead of the hardcoded values, falling back to
+    # whichever of those hardcoded values are still set for any provider the
+    # vault doesn't cover. See scripts/resolve-keypool-vault.mjs.
+    keypoolVaultUrl: ""
+    keypoolLiveSecret: ""
     # 1Password Service Account token for the `op` CLI installed by the Dockerfile.
     # Create one at https://my.1password.com/service-accounts (or your Business
     # account) and grant it read access to only the vaults this gateway needs.

@@ -20,10 +20,12 @@
 #   ./docker-build.sh                     # local build
 #   ./docker-build.sh --push              # multi-arch buildx build + push
 # ...or invoke docker directly with the explicit context, plus the extra
-# named build context the `gc-build` stage needs for the `garmin-cli`
-# submodule (a sibling of `openclaw/`, not inside it):
+# named build contexts for the `garmin-cli` submodule (used by the `gc-build`
+# stage) and this repo's own `scripts/` directory — both siblings of
+# `openclaw/`, not inside it:
 #   docker build -f Dockerfile -t sctg/claw:latest \
-#     --build-context garmin-cli=./garmin-cli ./openclaw
+#     --build-context garmin-cli=./garmin-cli \
+#     --build-context sctg-scripts=./scripts ./openclaw
 #
 # ---------------------------------------------------------------------------
 # Everything up to the "sctg-claw additions" marker below is openclaw/Dockerfile
@@ -506,6 +508,13 @@ RUN --mount=type=cache,id=openclaw-bookworm-apt-cache,target=/var/cache/apt,shar
 COPY --from=gc-build /src/garmin-cli/dist/gc /usr/local/bin/gc
 RUN chmod +x /usr/local/bin/gc
 
+# KeypoolLive vault resolver (see scripts/resolve-keypool-vault.mjs): populates
+# MISTRAL_API_KEYS/COHERE_API_KEYS/POOLSIDE_API_KEYS/FIRECRAWL_API_KEYS/EXA_API_KEYS
+# from an encrypted vault at container start instead of hardcoding them, when
+# KEYPOOL_VAULT_URL/KEYPOOL_LIVE_SECRET are set. A sibling of openclaw/, so it
+# comes from its own named build context (see header comment above).
+COPY --from=sctg-scripts --chown=node:node resolve-keypool-vault.mjs ./scripts/resolve-keypool-vault.mjs
+
 # Expose the CLI binary without requiring npm global writes as non-root.
 RUN ln -sf /app/openclaw.mjs /usr/local/bin/openclaw \
  && chmod 755 /app/openclaw.mjs
@@ -562,4 +571,7 @@ ENTRYPOINT ["tini", "-s", "--"]
 # defaults to owner-only. Without it, the shell's default 022 umask leaves
 # op's first-run config at 644 and `op` refuses to use it: "cannot read
 # config ... because its permissions are too broad".
-CMD ["sh", "-c", "umask 077; Xvfb :99 -screen 0 1920x1080x24 & fluxbox -display :99 & x11vnc -display :99 -forever -passwd ${VNC_PASSWORD} -rfbport 5900 & node openclaw.mjs gateway"]
+# The keypool vault resolver exports provider *_API_KEYS on stdout when
+# KEYPOOL_VAULT_URL/KEYPOOL_LIVE_SECRET are set, and prints nothing (safe to
+# eval) otherwise -- see scripts/resolve-keypool-vault.mjs.
+CMD ["sh", "-c", "umask 077; eval \"$(node scripts/resolve-keypool-vault.mjs)\"; Xvfb :99 -screen 0 1920x1080x24 & fluxbox -display :99 & x11vnc -display :99 -forever -passwd ${VNC_PASSWORD} -rfbport 5900 & node openclaw.mjs gateway"]

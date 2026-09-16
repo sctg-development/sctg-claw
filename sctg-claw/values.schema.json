@@ -77,6 +77,14 @@
                         "onePasswordServiceAccountToken": {
                             "type": "string",
                             "description": "1Password Service Account token (OP_SERVICE_ACCOUNT_TOKEN) for the op CLI installed by the Dockerfile; enables non-interactive `op read`/`op run` inside the container."
+                        },
+                        "keypoolVaultUrl": {
+                            "type": "string",
+                            "description": "KeypoolLive vault URL (KEYPOOL_VAULT_URL). When set with keypoolLiveSecret, provider *ApiKeys above are resolved from this encrypted vault at container startup instead of the hardcoded values."
+                        },
+                        "keypoolLiveSecret": {
+                            "type": "string",
+                            "description": "KeypoolLive vault bearer token / decryption secret (KEYPOOL_LIVE_SECRET). Required alongside keypoolVaultUrl."
                         }
                     }
                 },
