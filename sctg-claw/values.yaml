@@ -78,6 +78,12 @@ openclaw:
     ghToken: ""
     garminEmail: ""
     garminPassword: ""
+    openaiApiKeys: ""
+    # Overrides the default https://api.openai.com/v1 endpoint for the openai
+    # provider -- e.g. to route through a private/self-hosted OpenAI-API-
+    # compatible cloud instead. Already supported upstream (OPENAI_BASE_URL),
+    # no fork changes needed. Leave empty to use the real OpenAI API.
+    openaiBaseUrl: ""
     # KeypoolLive vault (git@github.com:sctg-development/ai-proxy-cloudflare.git):
     # when both are set, the container resolves mistralApiKeys/cohereApiKeys/
     # poolsideApiKeys/firecrawlApiKeys/exaApiKeys above from this encrypted

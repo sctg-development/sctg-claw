@@ -550,6 +550,11 @@ RUN install -d -m 0755 -o node -g node /home/node/.config && \
     stat -c '%U:%G %a' /home/node/.config | grep -qx 'node:node 755' && \
     stat -c '%U:%G %a' /home/node/.config/openclaw | grep -qx 'node:node 700'
 
+# /opt is root-owned; pre-create the coach plugin's target directory here
+# (still root) so the node-owned RUN below -- after USER node -- can write
+# into it instead of failing with "Permission denied".
+RUN install -d -m 0755 -o node -g node /opt/openclaw-coach
+
 ENV NODE_ENV=production
 ENV VNC_PASSWORD="openclaw"
 
@@ -587,7 +592,7 @@ RUN cd /tmp/openclaw-coach && \
     npm run build && \
     npm ci --omit=dev && \
     cd /app && \
-    mkdir -p /opt/openclaw-coach && \
+    mkdir -p /app/openclaw-coach && \
     cp -a /tmp/openclaw-coach/. /opt/openclaw-coach/ && \
     chown -R node:node /opt/openclaw-coach && \
     rm -rf /tmp/openclaw-coach
