@@ -75,6 +75,7 @@ jobs:
           build-contexts: |
             garmin-cli=./garmin-cli
             openclaw-coach=./openclaw-coach
+            sctg-scripts=./scripts
           file: ./Dockerfile
           platforms: ${{ matrix.platform }}
           outputs: ${{ github.event_name != 'pull_request' && format('type=image,name={0}/{1},push-by-digest=true,name-canonical=true,push=true', env.REGISTRY, env.IMAGE_NAME) || 'type=cacheonly' }}
