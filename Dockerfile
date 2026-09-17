@@ -548,6 +548,15 @@ USER node
 # that path too: bash sources ~/.bashrc for every interactive shell.
 RUN echo 'umask 077' >> /home/node/.bashrc
 
+# AI coach plugin (sctg-development/openclaw-coach), published to npm as
+# @sctg/openclaw-coach. Installed as the node user (after USER node above) so
+# whatever state `openclaw plugins install` writes under /home/node/.openclaw
+# is owned by node, not root. Empty version means "latest". --force is
+# required for any npm: source: it is outside ClawHub review/trust metadata,
+# which is expected and fine for our own self-published plugin.
+ARG OPENCLAW_COACH_VERSION=""
+RUN openclaw plugins install "npm:@sctg/openclaw-coach${OPENCLAW_COACH_VERSION:+@${OPENCLAW_COACH_VERSION}}" --force
+
 # Verify the shipped toolchain needs no privileged writes or first-run downloads.
 RUN COREPACK_ENABLE_NETWORK=0 PNPM_CONFIG_OFFLINE=true pnpm --version
 
