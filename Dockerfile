@@ -420,6 +420,13 @@ RUN --mount=type=cache,id=openclaw-bookworm-apt-cache,target=/var/cache/apt,shar
 # Build with: docker build --build-arg OPENCLAW_INSTALL_BROWSER=1 ...
 # Adds ~300MB but eliminates the 60-90s Playwright install on every container start.
 # Must run after node_modules COPY so playwright-core is available.
+#
+# The mkdir -p below (as root, pre-USER-node) creates /home/node/.cache itself
+# too, but the chown only covers the ms-playwright subtree -- the parent stayed
+# root-owned, so node could never create sibling cache dirs there (e.g.
+# openclaw's own fallback temp dir under .cache/openclaw-*). Explicitly chown
+# the parent too, unconditionally: it's a general-purpose cache dir openclaw
+# itself needs regardless of whether the browser install ran.
 ARG OPENCLAW_INSTALL_BROWSER="1"
 ENV PLAYWRIGHT_BROWSERS_PATH=/home/node/.cache/ms-playwright
 RUN --mount=type=cache,id=openclaw-bookworm-apt-cache,target=/var/cache/apt,sharing=locked \
@@ -430,7 +437,8 @@ RUN --mount=type=cache,id=openclaw-bookworm-apt-cache,target=/var/cache/apt,shar
       mkdir -p "$PLAYWRIGHT_BROWSERS_PATH" && \
       node /app/node_modules/playwright-core/cli.js install --with-deps chromium && \
       chown -R node:node "$PLAYWRIGHT_BROWSERS_PATH"; \
-    fi
+    fi && \
+    mkdir -p /home/node/.cache && chown node:node /home/node/.cache
 
 # Optionally install Docker CLI for sandbox container management.
 # Build with: docker build --build-arg OPENCLAW_INSTALL_DOCKER_CLI=1 ...
@@ -548,14 +556,28 @@ USER node
 # that path too: bash sources ~/.bashrc for every interactive shell.
 RUN echo 'umask 077' >> /home/node/.bashrc
 
-# AI coach plugin (sctg-development/openclaw-coach), published to npm as
-# @sctg/openclaw-coach. Installed as the node user (after USER node above) so
-# whatever state `openclaw plugins install` writes under /home/node/.openclaw
-# is owned by node, not root. Empty version means "latest". --force is
-# required for any npm: source: it is outside ClawHub review/trust metadata,
-# which is expected and fine for our own self-published plugin.
-ARG OPENCLAW_COACH_VERSION=""
-RUN openclaw plugins install "npm:@sctg/openclaw-coach${OPENCLAW_COACH_VERSION:+@${OPENCLAW_COACH_VERSION}}" --force
+# AI coach plugin (sctg-development/openclaw-coach), built from the pinned
+# submodule source instead of the npm-published copy, matching how gc is
+# built from the garmin-cli submodule -- no dependency on a successful npm
+# publish. A sibling of openclaw/, so it comes from its own named build
+# context (see header comment above). Built in /tmp (not /app) because the
+# build needs typescript + openclaw as devDependencies, which we do not want
+# left behind in the final image; `openclaw plugins install <path>` (no
+# --link) copies the built plugin into its own managed directory, so /tmp is
+# safe to remove once install completes. Installed as the node user (after
+# USER node above) so that managed directory is owned by node, not root.
+# --force is required for any non-ClawHub source: it is outside ClawHub
+# review/trust metadata, which is expected and fine for our own plugin.
+# `npm ci` (unlike `npm install`) treats NODE_ENV=production (set above) as
+# an implicit --omit=dev, which silently skipped typescript/openclaw/
+# @types/node and broke the tsc build -- --include=dev overrides that.
+COPY --from=openclaw-coach --chown=node:node . /tmp/openclaw-coach
+RUN cd /tmp/openclaw-coach && \
+    npm ci --include=dev && \
+    npm run build && \
+    cd /app && \
+    openclaw plugins install /tmp/openclaw-coach --force --accept-capabilities && \
+    rm -rf /tmp/openclaw-coach
 
 # Verify the shipped toolchain needs no privileged writes or first-run downloads.
 RUN COREPACK_ENABLE_NETWORK=0 PNPM_CONFIG_OFFLINE=true pnpm --version

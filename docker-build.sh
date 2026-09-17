@@ -24,6 +24,11 @@ if [ ! -f garmin-cli/pyproject.toml ]; then
   exit 1
 fi
 
+if [ ! -f openclaw-coach/package.json ]; then
+  echo "ERROR: openclaw-coach/ submodule looks empty. Run: git submodule update --init --recursive" >&2
+  exit 1
+fi
+
 TAG="sctg/claw:local"
 PUSH=0
 EXTRA_ARGS=()
@@ -51,15 +56,15 @@ done
 if [ "$PUSH" = "1" ]; then
   echo "==> Multi-arch build + push: $TAG (linux/amd64,linux/arm64)"
   if [ ${#EXTRA_ARGS[@]} -gt 0 ]; then
-    docker buildx build --platform linux/amd64,linux/arm64 -f Dockerfile -t "$TAG" --build-context garmin-cli=./garmin-cli --build-context sctg-scripts=./scripts --push "${EXTRA_ARGS[@]}" ./openclaw
+    docker buildx build --platform linux/amd64,linux/arm64 -f Dockerfile -t "$TAG" --build-context garmin-cli=./garmin-cli --build-context openclaw-coach=./openclaw-coach --build-context sctg-scripts=./scripts --push "${EXTRA_ARGS[@]}" ./openclaw
   else
-    docker buildx build --platform linux/amd64,linux/arm64 -f Dockerfile -t "$TAG" --build-context garmin-cli=./garmin-cli --build-context sctg-scripts=./scripts --push ./openclaw
+    docker buildx build --platform linux/amd64,linux/arm64 -f Dockerfile -t "$TAG" --build-context garmin-cli=./garmin-cli --build-context openclaw-coach=./openclaw-coach --build-context sctg-scripts=./scripts --push ./openclaw
   fi
 else
   echo "==> Local single-arch build: $TAG"
   if [ ${#EXTRA_ARGS[@]} -gt 0 ]; then
-    docker build -f Dockerfile -t "$TAG" --build-context garmin-cli=./garmin-cli --build-context sctg-scripts=./scripts "${EXTRA_ARGS[@]}" ./openclaw
+    docker build -f Dockerfile -t "$TAG" --build-context garmin-cli=./garmin-cli --build-context openclaw-coach=./openclaw-coach --build-context sctg-scripts=./scripts "${EXTRA_ARGS[@]}" ./openclaw
   else
-    docker build -f Dockerfile -t "$TAG" --build-context garmin-cli=./garmin-cli --build-context sctg-scripts=./scripts ./openclaw
+    docker build -f Dockerfile -t "$TAG" --build-context garmin-cli=./garmin-cli --build-context openclaw-coach=./openclaw-coach --build-context sctg-scripts=./scripts ./openclaw
   fi
 fi
