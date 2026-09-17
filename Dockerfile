@@ -421,14 +421,21 @@ RUN --mount=type=cache,id=openclaw-bookworm-apt-cache,target=/var/cache/apt,shar
 # Adds ~300MB but eliminates the 60-90s Playwright install on every container start.
 # Must run after node_modules COPY so playwright-core is available.
 #
+# PLAYWRIGHT_BROWSERS_PATH deliberately lives outside /home/node: our Helm
+# chart's persistence.mountPath is /home/node (the whole home directory), so
+# anything baked into the image under there gets shadowed by the empty PVC at
+# pod start -- the browser was "installed" at build time but invisible at
+# runtime. /opt is never volume-mounted, so it survives.
+#
 # The mkdir -p below (as root, pre-USER-node) creates /home/node/.cache itself
 # too, but the chown only covers the ms-playwright subtree -- the parent stayed
 # root-owned, so node could never create sibling cache dirs there (e.g.
 # openclaw's own fallback temp dir under .cache/openclaw-*). Explicitly chown
 # the parent too, unconditionally: it's a general-purpose cache dir openclaw
-# itself needs regardless of whether the browser install ran.
+# itself needs regardless of whether the browser install ran. This one is
+# fine on the PVC -- it's ephemeral runtime cache, not build-time content.
 ARG OPENCLAW_INSTALL_BROWSER="1"
-ENV PLAYWRIGHT_BROWSERS_PATH=/home/node/.cache/ms-playwright
+ENV PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright
 RUN --mount=type=cache,id=openclaw-bookworm-apt-cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,id=openclaw-bookworm-apt-lists,target=/var/lib/apt,sharing=locked \
     if [ -n "$OPENCLAW_INSTALL_BROWSER" ]; then \
@@ -561,14 +568,16 @@ RUN echo 'umask 077' >> /home/node/.bashrc
 # submodule source instead of the npm-published copy, matching how gc is
 # built from the garmin-cli submodule -- no dependency on a successful npm
 # publish. A sibling of openclaw/, so it comes from its own named build
-# context (see header comment above). Built in /tmp (not /app) because the
-# build needs typescript + openclaw as devDependencies, which we do not want
-# left behind in the final image; `openclaw plugins install <path>` (no
-# --link) copies the built plugin into its own managed directory, so /tmp is
-# safe to remove once install completes. Installed as the node user (after
-# USER node above) so that managed directory is owned by node, not root.
-# --force is required for any non-ClawHub source: it is outside ClawHub
-# review/trust metadata, which is expected and fine for our own plugin.
+# context (see header comment above).
+#
+# Built here but NOT installed here: `openclaw plugins install` would write
+# its managed record under /home/node/.openclaw, which -- like
+# PLAYWRIGHT_BROWSERS_PATH above -- is shadowed by the persistence PVC at pod
+# start. A build-time install would be invisible on every real deployment.
+# Instead, keep the built plugin (source + dist, minus the dev-only
+# node_modules) at /opt/openclaw-coach, outside the mounted tree, and have
+# the CMD below install it on every container start -- cheap and idempotent,
+# and it means a PVC that predates this plugin still ends up with it.
 # `npm ci` (unlike `npm install`) treats NODE_ENV=production (set above) as
 # an implicit --omit=dev, which silently skipped typescript/openclaw/
 # @types/node and broke the tsc build -- --include=dev overrides that.
@@ -576,8 +585,11 @@ COPY --from=openclaw-coach --chown=node:node . /tmp/openclaw-coach
 RUN cd /tmp/openclaw-coach && \
     npm ci --include=dev && \
     npm run build && \
+    npm ci --omit=dev && \
     cd /app && \
-    openclaw plugins install /tmp/openclaw-coach --force --accept-capabilities && \
+    mkdir -p /opt/openclaw-coach && \
+    cp -a /tmp/openclaw-coach/. /opt/openclaw-coach/ && \
+    chown -R node:node /opt/openclaw-coach && \
     rm -rf /tmp/openclaw-coach
 
 # Verify the shipped toolchain needs no privileged writes or first-run downloads.
@@ -606,4 +618,8 @@ ENTRYPOINT ["tini", "-s", "--"]
 # The keypool vault resolver exports provider *_API_KEYS on stdout when
 # KEYPOOL_VAULT_URL/KEYPOOL_LIVE_SECRET are set, and prints nothing (safe to
 # eval) otherwise -- see scripts/resolve-keypool-vault.mjs.
-CMD ["sh", "-c", "umask 077; eval \"$(node scripts/resolve-keypool-vault.mjs)\"; Xvfb :99 -screen 0 1920x1080x24 & fluxbox -display :99 & x11vnc -display :99 -forever -passwd ${VNC_PASSWORD} -rfbport 5900 & node openclaw.mjs gateway"]
+# The coach plugin install (see /opt/openclaw-coach above) runs here, not at
+# build time, because /home/node/.openclaw is on the persistence PVC and a
+# build-time install would be invisible at runtime. `;` (not `&&`) so a
+# hiccup here never blocks the gateway from starting.
+CMD ["sh", "-c", "umask 077; eval \"$(node scripts/resolve-keypool-vault.mjs)\"; openclaw plugins install /opt/openclaw-coach --force --accept-capabilities; Xvfb :99 -screen 0 1920x1080x24 & fluxbox -display :99 & x11vnc -display :99 -forever -passwd ${VNC_PASSWORD} -rfbport 5900 & node openclaw.mjs gateway"]
