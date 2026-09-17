@@ -518,7 +518,12 @@ RUN --mount=type=cache,id=openclaw-bookworm-apt-cache,target=/var/cache/apt,shar
     curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | gpg --dearmor -o /usr/share/keyrings/cloud.google.gpg && \
     echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main" | tee -a /etc/apt/sources.list.d/google-cloud-sdk.list && \
     apt-get update && apt-get install google-cloud-cli && \
-    curl -fsSL https://claude.ai/install.sh | bash
+    curl -fsSL https://claude.ai/install.sh | bash && \
+    mkdir -p /usr/local/share/claude && \
+    cp /root/.loccal/share/claude/* /usr/local/share/claude/ -r && \
+    # claude lands currently in /usr/local/share/claude/versions/2.1.274 but numbered binary should be symlinked to /usr/local/bin/claude for convenience. The install script does not do this, so we do it here. \
+    ln -svf /usr/local/share/claude/versions/$(ls -1 /usr/local/share/claude/versions | sort -V | tail -n 1) /usr/local/bin/claude && \
+    chmod +x /usr/local/bin/claude
 
 # gc (garmin-cli), built from the submodule source in the gc-build stage above.
 COPY --from=gc-build /src/garmin-cli/dist/gc /usr/local/bin/gc
