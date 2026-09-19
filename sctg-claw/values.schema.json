@@ -71,6 +71,7 @@
                         "firecrawlApiKeys": { "type": "string" },
                         "googlePlacesApiKeys": { "type": "string" },
                         "elevenlabsApiKeys": { "type": "string" },
+                        "openrouterApiKeys": { "type": "string" }, 
                         "openaiApiKeys": { "type": "string" },
                         "openaiBaseUrl": {
                             "type": "string",
