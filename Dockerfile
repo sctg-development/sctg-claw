@@ -551,6 +551,16 @@ RUN chmod +x /usr/local/bin/gc
 # comes from its own named build context (see header comment above).
 COPY --from=sctg-scripts --chown=node:node resolve-keypool-vault.mjs ./scripts/resolve-keypool-vault.mjs
 
+# OpenRouter free-model populator (see scripts/populate-openrouter-free-models.mjs):
+# independent of the openclaw package, it queries OpenRouter's live catalog
+# with OPENROUTER_API_KEYS/OPENROUTER_API_KEY and writes every ":free" model
+# into ~/.openclaw/openclaw.json under models.providers.openrouter.models,
+# tagged metadataSource: "models-add" so it never overwrites hand-curated
+# entries (e.g. the ones seeded from the openclaw-config ConfigMap/Helm
+# values). No-ops when no OpenRouter key is configured. Also a sibling of
+# openclaw/, from the same named build context.
+COPY --from=sctg-scripts --chown=node:node populate-openrouter-free-models.mjs ./scripts/populate-openrouter-free-models.mjs
+
 # Expose the CLI binary without requiring npm global writes as non-root.
 RUN ln -sf /app/openclaw.mjs /usr/local/bin/openclaw \
  && chmod 755 /app/openclaw.mjs
@@ -642,8 +652,12 @@ ENTRYPOINT ["tini", "-s", "--"]
 # The keypool vault resolver exports provider *_API_KEYS on stdout when
 # KEYPOOL_VAULT_URL/KEYPOOL_LIVE_SECRET are set, and prints nothing (safe to
 # eval) otherwise -- see scripts/resolve-keypool-vault.mjs.
+# The OpenRouter free-model populator runs right after, so it sees whatever
+# OPENROUTER_API_KEYS the vault resolver (or a plain env var) exported, and
+# before /home/node/.openclaw/openclaw.json is read by the gateway below --
+# see scripts/populate-openrouter-free-models.mjs.
 # The coach plugin install (see /opt/openclaw-coach above) runs here, not at
 # build time, because /home/node/.openclaw is on the persistence PVC and a
 # build-time install would be invisible at runtime. `;` (not `&&`) so a
 # hiccup here never blocks the gateway from starting.
-CMD ["sh", "-c", "umask 077; eval \"$(node scripts/resolve-keypool-vault.mjs)\"; openclaw plugins install /opt/openclaw-coach --force --accept-capabilities; Xvfb :99 -screen 0 1920x1080x24 & fluxbox -display :99 & x11vnc -display :99 -forever -passwd ${VNC_PASSWORD} -rfbport 5900 & node openclaw.mjs gateway"]
+CMD ["sh", "-c", "umask 077; eval \"$(node scripts/resolve-keypool-vault.mjs)\"; node scripts/populate-openrouter-free-models.mjs; openclaw plugins install /opt/openclaw-coach --force --accept-capabilities; Xvfb :99 -screen 0 1920x1080x24 & fluxbox -display :99 & x11vnc -display :99 -forever -passwd ${VNC_PASSWORD} -rfbport 5900 & node openclaw.mjs gateway"]
