@@ -14,6 +14,15 @@
 // openclaw-config ConfigMap) untouched, so it is safe to re-run on every
 // container start without clobbering manually curated models.
 //
+// Discovered free models are also synced into
+// agents.defaults.modelPolicy.allow (as "openrouter/<catalog-id>" refs, the
+// exact key OpenClaw's model-selection matcher expects), but ONLY when that
+// allow list already exists and is non-empty: an absent/empty allow means
+// "any model allowed" in OpenClaw, so creating one here would newly
+// *restrict* access instead of only adding to it. When it does exist, this
+// script only replaces the "openrouter/*:free" entries it previously added
+// and leaves every other allow entry untouched.
+//
 // No-ops silently if OPENROUTER_API_KEYS/OPENROUTER_API_KEY is unset, and
 // warns on stderr (without throwing) on any fetch/parse/write failure, so
 // invoking this from a container CMD chain never blocks gateway startup.
@@ -26,6 +35,7 @@ const FETCH_TIMEOUT_MS = 10_000;
 const KEY_SPLIT_RE = /[\s,;]+/g;
 const METADATA_SOURCE = "models-add";
 const ALLOWED_INPUT_MODALITIES = ["text", "image", "video", "audio"];
+const OPENROUTER_FREE_ALLOW_REF_RE = /^openrouter\/.+:free$/;
 
 function parseKeyList(raw) {
   if (!raw) {
@@ -228,6 +238,40 @@ function mergeFreeModelsIntoConfig(config, freeModels) {
   return nextConfig;
 }
 
+/**
+ * Syncs discovered free models into agents.defaults.modelPolicy.allow, using
+ * the same key format OpenClaw's model-selection matcher expects:
+ * `${provider}/${modelId}` (see src/shared/model-key.ts). Returns
+ * `{ config, updated }` -- `updated` is false when the allow list was left
+ * untouched (absent/empty, meaning "any model allowed" already).
+ */
+function mergeFreeModelsIntoModelPolicy(config, freeModels) {
+  const agents = config.agents ?? {};
+  const defaults = agents.defaults ?? {};
+  const existingAllow = defaults.modelPolicy?.allow;
+  if (!Array.isArray(existingAllow) || existingAllow.length === 0) {
+    return { config, updated: false };
+  }
+
+  const preserved = existingAllow.filter((ref) => !OPENROUTER_FREE_ALLOW_REF_RE.test(ref));
+  const discoveredRefs = freeModels.map((model) => `openrouter/${model.id}`);
+  const nextAllow = [...new Set([...preserved, ...discoveredRefs])];
+
+  return {
+    config: {
+      ...config,
+      agents: {
+        ...agents,
+        defaults: {
+          ...defaults,
+          modelPolicy: { ...defaults.modelPolicy, allow: nextAllow },
+        },
+      },
+    },
+    updated: true,
+  };
+}
+
 async function main() {
   const apiKeys = resolveCandidateApiKeys();
   if (apiKeys.length === 0) {
@@ -257,10 +301,17 @@ async function main() {
   const configPath = resolveConfigPath();
   try {
     const existingConfig = readExistingConfig(configPath);
-    const nextConfig = mergeFreeModelsIntoConfig(existingConfig, freeModels);
+    const withModels = mergeFreeModelsIntoConfig(existingConfig, freeModels);
+    const { config: nextConfig, updated: allowlistUpdated } = mergeFreeModelsIntoModelPolicy(
+      withModels,
+      freeModels,
+    );
     writeConfigAtomic(configPath, nextConfig);
     console.error(
-      `populate-openrouter-free-models: wrote ${freeModels.length} free OpenRouter model(s) to ${configPath}`,
+      `populate-openrouter-free-models: wrote ${freeModels.length} free OpenRouter model(s) to ${configPath}` +
+        (allowlistUpdated
+          ? " (also synced agents.defaults.modelPolicy.allow)"
+          : " (modelPolicy.allow absent/empty, left unrestricted)"),
     );
   } catch (error) {
     console.error(`populate-openrouter-free-models: could not update ${configPath}, skipping: ${error.message}`);
