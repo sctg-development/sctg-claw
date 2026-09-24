@@ -48,6 +48,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # image's command to run /app/mobile-auth-broker directly and cirond is
 # never invoked.
 COPY --from=ciron_builder /ciron/target/release/cirond /usr/sbin/cirond
+COPY --from=ciron_builder /ciron/target/release/cironctl /usr/sbin/cironctl
 COPY --from=builder /mobile-auth-broker /app/mobile-auth-broker
 COPY scripts/ciron.toml /etc/ciron/ciron.toml
 
@@ -56,10 +57,10 @@ COPY scripts/ciron.toml /etc/ciron/ciron.toml
 # capabilities instead of running the container as root (the container's
 # /dev/net/tun is host-provided and world-writable for exactly this
 # rootless-with-capabilities pattern).
-RUN addgroup --system appgroup && adduser --system --ingroup appgroup appuser && \
-    mkdir -p /data /run/tailscale /var/lib/tailscale && \
-    chown -R appuser:appgroup /app /data /run/tailscale /var/lib/tailscale
-USER appuser
+# RUN addgroup --system appgroup && adduser --system --ingroup appgroup appuser && \
+#     mkdir -p /data /run/tailscale /var/lib/tailscale && \
+#     chown -R appuser:appgroup /app /data /run/tailscale /var/lib/tailscale
+# USER appuser
 
 EXPOSE 8080
 
