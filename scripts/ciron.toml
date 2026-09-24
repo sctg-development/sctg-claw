@@ -1,0 +1,38 @@
+# cirond config for the sctg-claw runtime image (see Dockerfile's
+# "sctg-claw additions" section). Replaces the previous shell-backgrounded
+# (`cmd &`) startup: cirond now owns these long-running processes and
+# restarts them if they die, instead of a crash silently going unnoticed.
+#
+# All programs inherit cirond's own environment (e.g. VNC_PASSWORD, set via
+# ENV in the Dockerfile) - no [program.*.env] table needed unless a value
+# must be overridden.
+
+[transport]
+enable_unix = true
+
+[program.openclaw-gateway]
+command = "node openclaw.mjs gateway"
+autostart = true
+restart = "always"
+log_forward = true
+
+[program.xvfb]
+command = "Xvfb :99 -screen 0 1920x1080x24"
+autostart = true
+restart = "always"
+log_forward = true
+
+[program.fluxbox]
+command = "fluxbox -display :99"
+autostart = true
+restart = "always"
+log_forward = true
+
+# x11vnc needs shell expansion for $VNC_PASSWORD, so it's wrapped in `sh -c`
+# (cirond parses `command` with shell-words, not a shell, so bare "$VAR"
+# would otherwise be passed through literally instead of being expanded).
+[program.x11vnc]
+command = "sh -c 'x11vnc -display :99 -forever -passwd \"$VNC_PASSWORD\" -rfbport 5900'"
+autostart = true
+restart = "always"
+log_forward = true

@@ -69,6 +69,15 @@ ARG OPENCLAW_BUN_IMAGE="docker.io/oven/bun:1.4.0@sha256:5ff609364c049b54eb0ff560
 # docker.io/library/node:24-bookworm-slim (or podman) and replace the digests below with the
 # current multi-arch manifest list entries.
 
+# Cirond is a small fast process manager for running multiple long-running processes in a single container. It is used to run cirond and cironctl in the sctg-claw image.
+FROM ${OPENCLAW_NODE_BOOKWORM_IMAGE} AS ciron_builder
+RUN --mount=type=cache,id=openclaw-bookworm-apt-cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,id=openclaw-bookworm-apt-lists,target=/var/lib/apt,sharing=locked \
+    apt-get update && \
+    apt install -y curl ca-certificates build-essential git curl pkg-config libssl-dev protobuf-compiler && apt-get clean
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+RUN cd / && git clone --branch k8s https://github.com/sctg-development/ciron.git && . ~/.cargo/env && cd ciron && cargo build --release
+
 FROM ${OPENCLAW_NODE_BOOKWORM_IMAGE} AS workspace-deps
 ARG OPENCLAW_EXTENSIONS
 ARG OPENCLAW_BUNDLED_PLUGIN_DIR
@@ -504,22 +513,24 @@ RUN --mount=type=cache,id=openclaw-bookworm-apt-cache,target=/var/cache/apt,shar
 # sctg-claw additions start here (everything above is upstream openclaw/Dockerfile)
 # ---------------------------------------------------------------------------
 
-ARG GOGCLI_VERSION=0.35.0
-ARG GOPLACES_VERSION=0.4.4
+ARG GOGCLI_VERSION=0.40.0
+ARG GOPLACES_VERSION=0.4.11
 ARG WACLI_VERSION=0.16.0
 RUN --mount=type=cache,id=openclaw-bookworm-apt-cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,id=openclaw-bookworm-apt-lists,target=/var/lib/apt,sharing=locked \
     apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends tar pandoc librsvg2-bin imagemagick jq ffmpeg gh gnupg vim bzip2 ssh x11vnc xvfb && \
+    # OpenClaw's additional system packages \
     case "${TARGETARCH}" in amd64|arm64) ;; *) echo "Unsupported architecture: ${TARGETARCH}" >&2; exit 1 ;; esac && \
-    curl -fsSL "https://github.com/steipete/gogcli/releases/download/v${GOGCLI_VERSION}/gogcli_${GOGCLI_VERSION}_linux_${TARGETARCH}.tar.gz" -o /tmp/gogcli.tar.gz && \
+    curl -fsSL "https://github.com/openclaw/gogcli/releases/download/v${GOGCLI_VERSION}/gogcli_${GOGCLI_VERSION}_linux_${TARGETARCH}.tar.gz" -o /tmp/gogcli.tar.gz && \
     tar -xzf /tmp/gogcli.tar.gz -O ./gog > /usr/local/bin/gog && \
-    curl -fsSL "https://github.com/steipete/goplaces/releases/download/v${GOPLACES_VERSION}/goplaces_${GOPLACES_VERSION}_linux_${TARGETARCH}.tar.gz" -o /tmp/goplaces.tar.gz && \
+    curl -fsSL "https://github.com/openclaw/goplaces/releases/download/v${GOPLACES_VERSION}/goplaces_${GOPLACES_VERSION}_linux_${TARGETARCH}.tar.gz" -o /tmp/goplaces.tar.gz && \
     tar -xzf /tmp/goplaces.tar.gz -O goplaces > /usr/local/bin/goplaces && \
-    curl -fsSL "https://github.com/steipete/wacli/releases/download/v${WACLI_VERSION}/wacli_${WACLI_VERSION}_linux_${TARGETARCH}.tar.gz" -o /tmp/wacli.tar.gz && \
+    curl -fsSL "https://github.com/openclaw/wacli/releases/download/v${WACLI_VERSION}/wacli_${WACLI_VERSION}_linux_${TARGETARCH}.tar.gz" -o /tmp/wacli.tar.gz && \
     tar -xzf /tmp/wacli.tar.gz -O ./wacli > /usr/local/bin/wacli && \
     chmod +x /usr/local/bin/gog /usr/local/bin/goplaces /usr/local/bin/wacli && \
     rm -f /tmp/gogcli.tar.gz /tmp/goplaces.tar.gz /tmp/wacli.tar.gz && \
+    # Install 1Password CLI \
     curl -sS https://downloads.1password.com/linux/keys/1password.asc | \
     gpg --dearmor --output /usr/share/keyrings/1password-archive-keyring.gpg && \
     echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/1password-archive-keyring.gpg] https://downloads.1password.com/linux/debian/$(dpkg --print-architecture) stable main" | tee /etc/apt/sources.list.d/1password.list && \
@@ -528,9 +539,11 @@ RUN --mount=type=cache,id=openclaw-bookworm-apt-cache,target=/var/cache/apt,shar
     mkdir -p /usr/share/debsig/keyrings/AC2D62742012EA22 && \
     curl -sS https://downloads.1password.com/linux/keys/1password.asc | gpg --dearmor --output /usr/share/debsig/keyrings/AC2D62742012EA22/debsig.gpg && \
     apt update && apt install 1password-cli && \
+    # Install Google Cloud CLI \
     curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | gpg --dearmor -o /usr/share/keyrings/cloud.google.gpg && \
     echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main" | tee -a /etc/apt/sources.list.d/google-cloud-sdk.list && \
     apt-get update && apt-get install google-cloud-cli && \
+    # Install Claude CLI \
     curl -fsSL https://claude.ai/install.sh | bash && \
     mkdir -p /usr/local/share/claude && \
     cp /root/.local/share/claude/* /usr/local/share/claude/ -r && \
@@ -538,11 +551,32 @@ RUN --mount=type=cache,id=openclaw-bookworm-apt-cache,target=/var/cache/apt,shar
     ln -svf /usr/local/share/claude/versions/$(ls -1 /usr/local/share/claude/versions | sort -V | tail -n 1) /usr/local/bin/claude && \
     rm -rf /root/.local/share/claude && \
     rm -rf /root/.local/bin/claude && \
-    chmod +x /usr/local/bin/claude
-
+    chmod +x /usr/local/bin/claude && \
+    # Install Tailscale CLI \
+    # Add Tailscale's GPG key \
+    curl -fsSL https://pkgs.tailscale.com/stable/debian/bookworm.noarmor.gpg | tee /usr/share/keyrings/tailscale-archive-keyring.gpg >/dev/null && \
+    # Add the tailscale repository \
+    curl -fsSL https://pkgs.tailscale.com/stable/debian/bookworm.tailscale-keyring.list | tee /etc/apt/sources.list.d/tailscale.list && \
+    # Install Tailscale \
+    apt-get update -y && apt-get install -y tailscale
+# install MinIO client (mc) for S3-compatible object storage access.
+RUN curl -L https://dl.min.io/client/mc/release/linux-$(dpkg --print-architecture)/mc > /usr/local/bin/mc && chmod +x /usr/local/bin/mc
+# Install BusyBox for lightweight Unix utilities (e.g. `sendmail`).  
+COPY --from=ismogroup/busybox:1.37.0-php-8.3-apache /busybox-1.37.0/_install/bin/busybox /bin/busybox
 # gc (garmin-cli), built from the submodule source in the gc-build stage above.
 COPY --from=gc-build /src/garmin-cli/dist/gc /usr/local/bin/gc
 RUN chmod +x /usr/local/bin/gc
+# Install cirond and cironctl, built from the pinned submodule source in the cirond_builder stage above.
+RUN mkdir -p /etc/ciron
+COPY --from=ciron_builder /ciron/target/release/cirond /usr/sbin/cirond
+COPY --from=ciron_builder /ciron/target/release/cironctl /usr/sbin/cironctl
+# cirond config: defines the long-running processes formerly backgrounded
+# with `&` directly in CMD (openclaw gateway, Xvfb, fluxbox, x11vnc), so
+# cirond supervises and restarts them instead of a crash going unnoticed.
+# Can be overridden by mounting a custom config at /etc/ciron/ciron.toml.
+# A sibling of openclaw/, so it comes from its own named build context (see
+# header comment above).
+COPY --from=sctg-scripts ciron.toml /etc/ciron/ciron.toml
 
 # KeypoolLive vault resolver (see scripts/resolve-keypool-vault.mjs): populates
 # MISTRAL_API_KEYS/COHERE_API_KEYS/POOLSIDE_API_KEYS/FIRECRAWL_API_KEYS/EXA_API_KEYS
@@ -660,4 +694,9 @@ ENTRYPOINT ["tini", "-s", "--"]
 # build time, because /home/node/.openclaw is on the persistence PVC and a
 # build-time install would be invisible at runtime. `;` (not `&&`) so a
 # hiccup here never blocks the gateway from starting.
-CMD ["sh", "-c", "umask 077; eval \"$(node scripts/resolve-keypool-vault.mjs)\"; node scripts/populate-openrouter-free-models.mjs; openclaw plugins install /opt/openclaw-coach --force --accept-capabilities; Xvfb :99 -screen 0 1920x1080x24 & fluxbox -display :99 & x11vnc -display :99 -forever -passwd ${VNC_PASSWORD} -rfbport 5900 & node openclaw.mjs gateway"]
+# Everything after that one-time setup -- the openclaw gateway, Xvfb,
+# fluxbox, x11vnc -- is no longer backgrounded ad hoc with `&`: it's declared
+# in /etc/ciron/ciron.toml (see scripts/ciron.toml) and supervised by cirond,
+# which restarts any of them if they die. `exec` replaces this shell with
+# cirond so tini manages it directly as the container's main process.
+CMD ["sh", "-c", "umask 077; eval \"$(node scripts/resolve-keypool-vault.mjs)\"; node scripts/populate-openrouter-free-models.mjs; openclaw plugins install /opt/openclaw-coach --force --accept-capabilities; exec /usr/sbin/cirond -c /etc/ciron/ciron.toml"]
