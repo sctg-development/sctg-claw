@@ -61,7 +61,7 @@ COPY scripts/ciron.toml /etc/ciron/ciron.toml
 #     mkdir -p /data /run/tailscale /var/lib/tailscale && \
 #     chown -R appuser:appgroup /app /data /run/tailscale /var/lib/tailscale
 # USER appuser
-
+USER 0:0
 EXPOSE 8080
 
 ENTRYPOINT ["/usr/sbin/cirond", "-c", "/etc/ciron/ciron.toml"]
