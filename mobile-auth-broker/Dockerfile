@@ -35,12 +35,16 @@ FROM debian:bookworm-slim
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        ca-certificates tzdata bash curl gnupg && \
+        ca-certificates tzdata bash curl gnupg kmod && \
     curl -fsSL https://pkgs.tailscale.com/stable/debian/bookworm.noarmor.gpg -o /usr/share/keyrings/tailscale-archive-keyring.gpg && \
     curl -fsSL https://pkgs.tailscale.com/stable/debian/bookworm.tailscale-keyring.list -o /etc/apt/sources.list.d/tailscale.list && \
     apt-get update && apt-get install -y --no-install-recommends tailscale && \
     apt-get purge -y --auto-remove curl gnupg && \
     rm -rf /var/lib/apt/lists/*
+# kmod (modprobe) is only used by the Helm chart's privileged tailnet-bypass
+# init container, which loads the host's `tun` kernel module before the
+# unprivileged main container starts -- see templates/mobile-auth-broker.yaml.
+# It is a ~1MB addition and otherwise unused at runtime.
 
 # cirond process manager -- supervises mobile-auth-broker plus, when the
 # tailnet bypass is enabled (see scripts/ciron.toml), tailscaled/tailscale.
@@ -64,4 +68,4 @@ COPY scripts/ciron.toml /etc/ciron/ciron.toml
 USER 0:0
 EXPOSE 8080
 
-ENTRYPOINT ["/usr/sbin/cirond", "-c", "/etc/ciron/ciron.toml"]
+ENTRYPOINT ["/usr/bin/bash", "-c", "'/usr/sbin/cirond -c /etc/ciron/ciron.toml'"]
