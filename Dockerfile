@@ -563,6 +563,7 @@ RUN --mount=type=cache,id=openclaw-bookworm-apt-cache,target=/var/cache/apt,shar
 RUN curl -L https://dl.min.io/client/mc/release/linux-$(dpkg --print-architecture)/mc > /usr/local/bin/mc && chmod +x /usr/local/bin/mc
 # Install BusyBox for lightweight Unix utilities (e.g. `sendmail`).  
 COPY --from=ismogroup/busybox:1.37.0-php-8.3-apache /busybox-1.37.0/_install/bin/busybox /bin/busybox
+RUN /bin/busybox --install -s
 # gc (garmin-cli), built from the submodule source in the gc-build stage above.
 COPY --from=gc-build /src/garmin-cli/dist/gc /usr/local/bin/gc
 RUN chmod +x /usr/local/bin/gc
