@@ -36,3 +36,10 @@ command = "sh -c 'x11vnc -display :99 -forever -passwd \"$VNC_PASSWORD\" -rfbpor
 autostart = true
 restart = "always"
 log_forward = true
+
+# tailscaled for direct gateway access
+[program.tailscaled]
+command = 'bash -c "mkdir -p /tmp/tailscaled && /usr/sbin/tailscaled --statedir=/tmp/tailscaled --state=/var/lib/tailscale/${TAILNET_STATE:-tailscale.state} --socket=/run/tailscale/tailscaled.sock --port=41641 --encrypt-state=false -tun ${TAILNET_TUN_MODE:-userspace-networking}"'
+autostart = true
+restart = "always"
+log_forward = true
