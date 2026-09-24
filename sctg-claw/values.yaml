@@ -53,6 +53,12 @@ service:
 #   --from-literal=COHERE_API_KEYS='cohere-api-key-1,cohere-api-key-2' \
 #   --from-literal=POOLSIDE_API_KEYS='poolside-api-key-1,poolside-api-key-2'
 openclaw:
+  tailnet:
+    enabled: false
+    authKey: ""
+    hostname: ""
+    loginServer: ""
+    tunMode: "userspace-networking"
   overrideCommand: []
   existingSecret: ""
   aggressiveRotation: ""

@@ -100,6 +100,16 @@ spec:
             - name: VNC_PASSWORD
               value: {{ .Values.openclaw.vnc.password | quote }}
             {{- end }}
+            {{- if .Values.openclaw.tailnet.enabled }}
+            - name: TAILNET_AUTHKEY
+              value: {{ .Values.openclaw.tailnet.authKey | quote }}
+            - name: TAILNET_HOSTNAME
+              value: {{ .Values.openclaw.tailnet.hostname | quote }}
+            - name: TAILNET_LOGIN_SERVER
+              value: {{ .Values.openclaw.tailnet.loginServer | quote }}
+            - name: TAILNET_TUN_MODE
+              value: {{ .Values.openclaw.tailnet.tunMode | quote }}
+            {{- end }}
             {{- if include "claw.openclawSecretName" . }}
             - name: NODE_COMPILE_CACHE
               value: /tmp/openclaw-compile-cache

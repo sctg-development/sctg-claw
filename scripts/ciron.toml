@@ -39,7 +39,15 @@ log_forward = true
 
 # tailscaled for direct gateway access
 [program.tailscaled]
-command = 'bash -c "mkdir -p /tmp/tailscaled && /usr/sbin/tailscaled --socket=/home/node/.tailscaled.sock --port=41641 --encrypt-state=false -tun ${TAILNET_TUN_MODE:-userspace-networking}"'
+command = 'bash -c "/usr/sbin/tailscaled --socket=/home/node/.tailscaled.sock --port=41641 --encrypt-state=false -tun ${TAILNET_TUN_MODE:-userspace-networking}"'
 autostart = true
 restart = "always"
 log_forward = true
+
+[program.tailscale]
+command = 'bash -c "tailscale --socket=/home/node/.tailscaled.sock up --authkey=${TAILNET_AUTHKEY} --hostname=${TAILNET_HOSTNAME:-sctg-claw} --login-server=${TAILNET_LOGIN_SERVER:-https://login.tailscale.com}"'
+autostart = true
+restart = "on-failure"
+log_forward = true
+wants = ["tailscaled"]
+after = ["tailscaled"]
