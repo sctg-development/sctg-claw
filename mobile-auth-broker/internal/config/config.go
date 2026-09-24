@@ -33,6 +33,20 @@ type Config struct {
 	TailnetEnabled  bool
 	TailnetSocket   string
 	TailnetIdentity string
+
+	// TLSEnabled serves an additional, self-managed HTTPS listener on
+	// TLSPorts using a real Let's Encrypt certificate for TLSDomain,
+	// obtained via ACME DNS-01 against Cloudflare (see internal/tlscert).
+	// This exists for native OpenClaw clients (iOS/macOS/Android), whose
+	// sign-in flow hard-requires https:// -- ws:///http:// gateway URLs are
+	// rejected client-side before any connection is attempted.
+	TLSEnabled         bool
+	TLSPorts           []int
+	TLSDomain          string
+	TLSEmail           string
+	TLSCloudflareToken string
+	TLSCertCacheDir    string
+	TLSACMEStaging     bool
 }
 
 func LoadConfig() (*Config, error) {
@@ -54,6 +68,14 @@ func LoadConfig() (*Config, error) {
 		TailnetEnabled:    getEnv("TAILNET_ENABLED", "false") == "true",
 		TailnetSocket:     getEnv("TAILNET_SOCKET", "/run/tailscale/tailscaled.sock"),
 		TailnetIdentity:   getEnv("TAILNET_IDENTITY", ""),
+
+		TLSEnabled:         getEnv("TLS_ENABLED", "false") == "true",
+		TLSPorts:           parseListenPorts(getEnv("TLS_PORTS", "443"), ":443"),
+		TLSDomain:          getEnv("TLS_DOMAIN", ""),
+		TLSEmail:           getEnv("TLS_ACME_EMAIL", ""),
+		TLSCloudflareToken: getEnv("TLS_CLOUDFLARE_API_TOKEN", ""),
+		TLSCertCacheDir:    getEnv("TLS_CERT_CACHE_DIR", "/data/certs"),
+		TLSACMEStaging:     getEnv("TLS_ACME_STAGING", "false") == "true",
 	}
 
 	if cfg.GitHubClientID == "" {
@@ -74,6 +96,18 @@ func LoadConfig() (*Config, error) {
 
 	if cfg.TailnetEnabled && cfg.TailnetIdentity == "" {
 		return nil, fmt.Errorf("TAILNET_IDENTITY is required when TAILNET_ENABLED is true")
+	}
+
+	if cfg.TLSEnabled {
+		if cfg.TLSDomain == "" {
+			return nil, fmt.Errorf("TLS_DOMAIN is required when TLS_ENABLED is true")
+		}
+		if cfg.TLSEmail == "" {
+			return nil, fmt.Errorf("TLS_ACME_EMAIL is required when TLS_ENABLED is true")
+		}
+		if cfg.TLSCloudflareToken == "" {
+			return nil, fmt.Errorf("TLS_CLOUDFLARE_API_TOKEN is required when TLS_ENABLED is true")
+		}
 	}
 
 	return cfg, nil

@@ -1,5 +1,7 @@
-# Build the mobile-auth-broker service
-FROM golang:1.21-bookworm AS builder
+# Build the mobile-auth-broker service.
+# go 1.25+ required by the go-acme/lego dependency (internal/tlscert, ACME
+# DNS-01 cert issuance) -- see go.mod.
+FROM golang:1.25-bookworm AS builder
 
 WORKDIR /app
 
@@ -19,7 +21,7 @@ RUN CGO_ENABLED=1 GOOS=linux go build -o /mobile-auth-broker ./cmd/main.go
 # cirond, built from the same pinned "k8s" branch as the sctg-claw image (see
 # ../Dockerfile's ciron_builder stage). Kept in its own stage so the builder
 # image above doesn't carry a Rust toolchain.
-FROM golang:1.21-bookworm AS ciron_builder
+FROM golang:1.25-bookworm AS ciron_builder
 RUN apt-get update && apt-get install -y --no-install-recommends \
         curl ca-certificates build-essential git pkg-config libssl-dev protobuf-compiler && \
     rm -rf /var/lib/apt/lists/*
