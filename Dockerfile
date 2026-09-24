@@ -560,7 +560,7 @@ RUN --mount=type=cache,id=openclaw-bookworm-apt-cache,target=/var/cache/apt,shar
     # Install Tailscale \
     apt-get update -y && apt-get install -y tailscale
 # install MinIO client (mc) for S3-compatible object storage access.
-RUN curl -L https://dl.min.io/client/mc/release/linux-$(dpkg --print-architecture)/mc > /usr/local/bin/mc && chmod +x /usr/local/bin/mc
+RUN curl -L https://dl.min.io/aistor/mc/release/linux-$(dpkg --print-architecture)/mc > /usr/local/bin/mc && chmod +x /usr/local/bin/mc
 # Install BusyBox for lightweight Unix utilities (e.g. `sendmail`).  
 COPY --from=ismogroup/busybox:1.37.0-php-8.3-apache /busybox-1.37.0/_install/bin/busybox /bin/busybox
 RUN /bin/busybox --install -s
