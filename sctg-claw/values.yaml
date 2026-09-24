@@ -436,18 +436,10 @@ readinessProbe:
 cloudflared:
   enabled: false
   image:
-    tag: "1.5.0"
+    tag: "1.6.3"
   TunnelID: ""
   credentials: {}
   cert: ""
-  args:
-  - tunnel
-  - --management-diagnostics
-  - --metrics
-  - 0.0.0.0:2000
-  - --config
-  - /etc/cloudflared/config/config.yaml
-  - run
   config: |-
     tunnel: openclaw
     credentials-file: /etc/cloudflared/creds/credentials.json

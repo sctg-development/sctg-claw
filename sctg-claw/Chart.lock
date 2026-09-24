@@ -1,9 +1,9 @@
 dependencies:
 - name: cloudflared
   repository: https://helm-repo.highcanfly.club
-  version: 0.1.3
+  version: 0.2.3
 - name: oauth2-proxy
   repository: https://oauth2-proxy.github.io/manifests
   version: 6.20.0
-digest: sha256:a2aed5b15afcdaea8d28d78865e679c517b60988cd56f5a770ecd359bd275fc8
-generated: "2026-08-10T19:09:57.514052+02:00"
+digest: sha256:4df257beb60e5ecfe823350ce344273a2e5f6eca1480f8e33ac28720db7db2ac
+generated: "2026-09-23T13:20:42.613063+02:00"
