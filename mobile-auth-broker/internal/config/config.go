@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"net"
 	"os"
 	"strconv"
 	"strings"
@@ -19,6 +20,7 @@ type Config struct {
 	AccessTokenTTL    time.Duration
 	RefreshTokenTTL   time.Duration
 	ListenAddr        string
+	ListenPorts       []int
 	DatabasePath      string
 	GitHubAPIBaseURL  string
 	MaxMessageSize    int64
@@ -34,6 +36,7 @@ type Config struct {
 }
 
 func LoadConfig() (*Config, error) {
+	listenAddr := getEnv("LISTEN_ADDR", ":8080")
 	cfg := &Config{
 		Hostname:          getEnv("BROKER_HOSTNAME", "mobile.claw.example.org"),
 		GitHubClientID:    getEnv("GITHUB_CLIENT_ID", ""),
@@ -42,7 +45,8 @@ func LoadConfig() (*Config, error) {
 		AllowedEmails:     parseEmails(getEnv("ALLOWED_EMAILS", "")),
 		AccessTokenTTL:    parseDuration(getEnv("ACCESS_TOKEN_TTL", "1h")),
 		RefreshTokenTTL:   parseDuration(getEnv("REFRESH_TOKEN_TTL", "720h")),
-		ListenAddr:        getEnv("LISTEN_ADDR", ":8080"),
+		ListenAddr:        listenAddr,
+		ListenPorts:       parseListenPorts(getEnv("LISTEN_PORTS", ""), listenAddr),
 		DatabasePath:      getEnv("DATABASE_PATH", "/data/broker.db"),
 		GitHubAPIBaseURL:  getEnv("GITHUB_API_BASE_URL", "https://api.github.com"),
 		MaxMessageSize:    parseInt(getEnv("MAX_MESSAGE_SIZE", "16777216"), 16777216),
@@ -92,6 +96,43 @@ func parseEmails(s string) []string {
 		}
 	}
 	return result
+}
+
+// parseListenPorts reads a comma-separated port list from LISTEN_PORTS
+// (e.g. "80,8080,18789", letting the broker accept connections on several
+// ports at once -- useful for the tailnet bypass, where clients may expect
+// a bare hostname (port 80) or the Gateway's own conventional port
+// (18789) instead of the broker's default 8080). Falls back to the single
+// port already parsed from LISTEN_ADDR when LISTEN_PORTS is unset, so
+// existing single-port deployments are unaffected.
+func parseListenPorts(listenPorts, listenAddr string) []int {
+	if s := strings.TrimSpace(listenPorts); s != "" {
+		var ports []int
+		for _, p := range strings.Split(s, ",") {
+			p = strings.TrimSpace(p)
+			if p == "" {
+				continue
+			}
+			port, err := strconv.Atoi(p)
+			if err != nil {
+				continue
+			}
+			ports = append(ports, port)
+		}
+		if len(ports) > 0 {
+			return ports
+		}
+	}
+
+	_, portStr, err := net.SplitHostPort(listenAddr)
+	if err != nil {
+		return []int{8080}
+	}
+	port, err := strconv.Atoi(portStr)
+	if err != nil {
+		return []int{8080}
+	}
+	return []int{port}
 }
 
 func parseDuration(s string) time.Duration {

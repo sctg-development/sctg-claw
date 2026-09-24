@@ -107,12 +107,28 @@ func (p *WebSocketProxy) HandleWebSocket(w http.ResponseWriter, r *http.Request)
 	// without it, attribution fails closed with 403 even though the peer is
 	// trusted. HandleHTTP gets this for free from httputil.ReverseProxy;
 	// the hand-rolled WebSocket dial here does not, so it must set it explicitly.
+	//
+	// Origin is equally load-bearing and was previously dropped entirely:
+	// the Gateway's Control UI auth rejects WebSocket upgrades with no
+	// Origin ("origin missing or invalid") once gateway.controlUi.allowedOrigins
+	// is configured, regardless of X-Forwarded-Email/-For being valid. The
+	// dial below only sends the headers listed here -- unlike HandleHTTP's
+	// httputil.ReverseProxy, it does not start from a copy of the client's
+	// original request headers, so Origin (and User-Agent, forwarded here
+	// too for useful Gateway-side client identification/audit logging) must
+	// be copied through explicitly or the Gateway never sees them.
 	gatewayHeaders := http.Header{
 		"X-Forwarded-Email": []string{device.Email},
 		"X-Forwarded-For":   []string{remote},
 		"X-Forwarded-Proto": []string{"https"},
 		"X-Forwarded-Host":  []string{p.config.Hostname},
 		"Host":              []string{p.config.Hostname},
+	}
+	if origin := r.Header.Get("Origin"); origin != "" {
+		gatewayHeaders.Set("Origin", origin)
+	}
+	if ua := r.Header.Get("User-Agent"); ua != "" {
+		gatewayHeaders.Set("User-Agent", ua)
 	}
 
 	// Connect to Gateway

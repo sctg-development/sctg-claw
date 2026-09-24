@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -82,9 +84,11 @@ func main() {
 		wsProxy.HandleHTTP(w, r)
 	})
 
-	// Create server
+	// Create server. One *http.Server, one listener per configured port --
+	// Serve() can be called concurrently on the same server for as many
+	// listeners as needed, and a single Shutdown() call below drains all of
+	// them together.
 	srv := &http.Server{
-		Addr:    cfg.ListenAddr,
 		Handler: r,
 		// Timeouts
 		ReadTimeout:  30 * time.Second,
@@ -92,17 +96,32 @@ func main() {
 		IdleTimeout:  120 * time.Second,
 	}
 
-	// Start server
-	log.Printf("Starting mobile-auth-broker on %s", cfg.ListenAddr)
 	log.Printf("Hostname: %s", cfg.Hostname)
 	log.Printf("Gateway Service URL: %s", cfg.GatewayServiceURL)
 	log.Printf("Allowed Emails: %v", cfg.AllowedEmails)
 
-	go func() {
-		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("Server error: %v", err)
+	// Bind every port up front so a bad port (e.g. 80 without
+	// CAP_NET_BIND_SERVICE) fails startup immediately instead of silently
+	// running on a subset of the configured ports.
+	listeners := make([]net.Listener, 0, len(cfg.ListenPorts))
+	for _, port := range cfg.ListenPorts {
+		addr := fmt.Sprintf(":%d", port)
+		ln, err := net.Listen("tcp", addr)
+		if err != nil {
+			log.Fatalf("Failed to listen on %s: %v", addr, err)
 		}
-	}()
+		listeners = append(listeners, ln)
+		log.Printf("Listening on %s", addr)
+	}
+
+	for _, ln := range listeners {
+		ln := ln
+		go func() {
+			if err := srv.Serve(ln); err != nil && err != http.ErrServerClosed {
+				log.Fatalf("Server error on %s: %v", ln.Addr(), err)
+			}
+		}()
+	}
 
 	// Wait for interrupt signal
 	quit := make(chan os.Signal, 1)
