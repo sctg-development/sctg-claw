@@ -106,6 +106,13 @@ spec:
         - name: mobile-auth-broker
           image: "{{ .Values.mobileAuthBroker.image.repository }}:{{ .Values.mobileAuthBroker.image.tag }}"
           imagePullPolicy: {{ .Values.mobileAuthBroker.image.pullPolicy | default "IfNotPresent" }}
+          {{- if not .Values.mobileAuthBroker.tailnet.enabled }}
+          # The image's default entrypoint is cirond, supervising the broker
+          # plus tailscaled/tailscale (see scripts/ciron.toml). Without the
+          # tailnet bypass there is nothing for cirond to supervise beyond
+          # the broker itself, so run it directly instead.
+          command: ["/app/mobile-auth-broker"]
+          {{- end }}
           ports:
             - containerPort: {{ .Values.mobileAuthBroker.service.port }}
               name: http
@@ -141,8 +148,42 @@ spec:
               value: {{ .Values.mobileAuthBroker.maxMessageSize | default "16777216" | quote }}
             - name: POLL_INTERVAL_SCALE
               value: {{ .Values.mobileAuthBroker.pollIntervalScale | default "1.5" | quote }}
+            {{- if .Values.mobileAuthBroker.tailnet.enabled }}
+            - name: TAILNET_ENABLED
+              value: "true"
+            - name: TAILNET_SOCKET
+              value: "/run/tailscale/tailscaled.sock"
+            - name: TAILNET_IDENTITY
+              value: {{ required "mobileAuthBroker.tailnet.identityScopes must have at least one entry when mobileAuthBroker.tailnet.enabled is true" (first .Values.mobileAuthBroker.tailnet.identityScopes) | quote }}
+            - name: TAILNET_AUTHKEY
+              value: {{ .Values.mobileAuthBroker.tailnet.authKey | quote }}
+            - name: TAILNET_HOSTNAME
+              value: {{ .Values.mobileAuthBroker.tailnet.hostname | quote }}
+            - name: TAILNET_LOGIN_SERVER
+              value: {{ .Values.mobileAuthBroker.tailnet.loginServer | quote }}
+            - name: TAILNET_TUN_MODE
+              value: {{ .Values.mobileAuthBroker.tailnet.tunMode | quote }}
+            {{- end }}
+          {{- if .Values.mobileAuthBroker.tailnet.enabled }}
+          # tailscaled needs a real TUN device (NET_ADMIN/NET_RAW) and writes
+          # its state/socket under /run and /var/lib -- both explicitly
+          # mounted emptyDirs below, so readOnlyRootFilesystem stays off only
+          # for this mode. Deliberately NOT built via `merge` on top of
+          # mobileAuthBroker.containerSecurityContext: sprig/mergo treats a
+          # `false` override as its zero value and silently keeps the base
+          # `true`, which would defeat this override.
+          securityContext:
+            allowPrivilegeEscalation: {{ .Values.mobileAuthBroker.containerSecurityContext.allowPrivilegeEscalation }}
+            runAsNonRoot: {{ .Values.mobileAuthBroker.containerSecurityContext.runAsNonRoot }}
+            runAsUser: {{ .Values.mobileAuthBroker.containerSecurityContext.runAsUser }}
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop: ["ALL"]
+              add: ["NET_ADMIN", "NET_RAW"]
+          {{- else }}
           securityContext:
             {{- toYaml .Values.mobileAuthBroker.containerSecurityContext | nindent 12 }}
+          {{- end }}
           resources:
             {{- toYaml .Values.mobileAuthBroker.resources | nindent 12 }}
           livenessProbe:
@@ -164,6 +205,14 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /data
+            {{- if .Values.mobileAuthBroker.tailnet.enabled }}
+            - name: dev-net-tun
+              mountPath: /dev/net/tun
+            - name: tailscale-run
+              mountPath: /run/tailscale
+            - name: tailscale-state
+              mountPath: /var/lib/tailscale
+            {{- end }}
       volumes:
         - name: data
           {{- if .Values.mobileAuthBroker.persistence.enabled }}
@@ -172,6 +221,16 @@ spec:
           {{- else }}
           emptyDir: {}
           {{- end }}
+        {{- if .Values.mobileAuthBroker.tailnet.enabled }}
+        - name: dev-net-tun
+          hostPath:
+            path: /dev/net/tun
+            type: CharDevice
+        - name: tailscale-run
+          emptyDir: {}
+        - name: tailscale-state
+          emptyDir: {}
+        {{- end }}
 ---
 
 {{- /* Service */ -}}
@@ -217,6 +276,18 @@ spec:
       ports:
         - port: {{ .Values.mobileAuthBroker.service.port }}
           protocol: TCP
+    {{- if .Values.mobileAuthBroker.tailnet.enabled }}
+    # Direct (non-DERP-relayed) WireGuard traffic for the tailnet bypass.
+    # Not required for the bypass to work -- tailscaled falls back to DERP
+    # over the egress 443/TCP rule below -- but avoids always paying the
+    # relay's extra hop/latency.
+    - from:
+        - ipBlock:
+            cidr: {{ .Values.mobileAuthBroker.tailnet.cidr }}
+      ports:
+        - port: 41641
+          protocol: UDP
+    {{- end }}
   egress:
     - to:
         - podSelector:
@@ -237,4 +308,12 @@ spec:
       ports:
         - port: 53
           protocol: UDP
+    {{- if .Values.mobileAuthBroker.tailnet.enabled }}
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - port: 41641
+          protocol: UDP
+    {{- end }}
 {{- end -}}
