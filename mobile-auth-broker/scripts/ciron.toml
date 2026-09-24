@@ -1,0 +1,35 @@
+# cirond config for the mobile-auth-broker runtime image (see Dockerfile).
+# mobile-auth-broker always runs; tailscaled/tailscale only do anything
+# useful once TAILNET_AUTHKEY is set (mobileAuthBroker.tailnet.enabled in the
+# Helm chart) -- with it unset, `tailscale up` simply fails and retries,
+# which the Helm chart avoids entirely by overriding the image command to
+# skip cirond (and this file) when the bypass is disabled.
+#
+# All programs inherit cirond's own environment - no [program.*.env] table
+# needed unless a value must be overridden.
+
+[transport]
+enable_unix = true
+
+[program.mobile-auth-broker]
+command = "/app/mobile-auth-broker"
+autostart = true
+restart = "always"
+log_forward = true
+
+# Real TUN ("-tun tailscale0"), not userspace-networking: the tailnet bypass
+# (internal/tailnet) needs the peer's genuine source address on
+# r.RemoteAddr, which userspace-networking's loopback NAT would hide.
+[program.tailscaled]
+command = 'bash -c "/usr/sbin/tailscaled --socket=/run/tailscale/tailscaled.sock --port=41641 --state=/var/lib/tailscale/tailscaled.state --encrypt-state=false -tun ${TAILNET_TUN_MODE:-tailscale0}"'
+autostart = true
+restart = "always"
+log_forward = true
+
+[program.tailscale]
+command = 'bash -c "tailscale --socket=/run/tailscale/tailscaled.sock up --authkey=${TAILNET_AUTHKEY} --hostname=${TAILNET_HOSTNAME:-mobile-claw-broker} --login-server=${TAILNET_LOGIN_SERVER:-https://login.tailscale.com}"'
+autostart = true
+restart = "on-failure"
+log_forward = true
+wants = ["tailscaled"]
+after = ["tailscaled"]

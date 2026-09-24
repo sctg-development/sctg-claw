@@ -14,6 +14,17 @@ import (
 	"github.com/sctg-development/sctg-claw/mobile-auth-broker/internal/config"
 	"github.com/sctg-development/sctg-claw/mobile-auth-broker/internal/db"
 	"github.com/sctg-development/sctg-claw/mobile-auth-broker/internal/models"
+	"github.com/sctg-development/sctg-claw/mobile-auth-broker/internal/tailnet"
+)
+
+// tailnetDeviceID/tailnetSessionID mark the synthetic device/session
+// returned for a tailnet-authenticated request. They never correspond to a
+// database row -- audit_events has no foreign key on device_id/session_id,
+// so writing these sentinel values is safe and keeps the audit trail able to
+// distinguish this path from a real paired device.
+const (
+	tailnetDeviceID  = "tailnet"
+	tailnetSessionID = "tailnet"
 )
 
 // httpProxyDeniedPathPrefixes are Gateway namespaces HandleHTTP never
@@ -227,6 +238,16 @@ func (p *WebSocketProxy) authenticateDevice(
 	w http.ResponseWriter,
 	r *http.Request,
 	remote string) (*models.MobileDevice, *models.AccessSession, bool) {
+	// Tailnet bypass: any peer the local tailscaled control socket vouches
+	// for is trusted outright and forwarded as the single configured
+	// identity, no GitHub Device Flow and no per-user allowlist. Tailnet
+	// membership (Headscale ACLs) is the security boundary for this path.
+	if p.config.TailnetEnabled && tailnet.IsPeer(p.config.TailnetSocket, remote) {
+		log.Printf("INFO: tailnet-authenticated request remote=%s identity=%s", remote, p.config.TailnetIdentity)
+		return &models.MobileDevice{ID: tailnetDeviceID, Email: p.config.TailnetIdentity},
+			&models.AccessSession{ID: tailnetSessionID}, true
+	}
+
 	authHeader := r.Header.Get("Authorization")
 	if authHeader == "" {
 		log.Printf("WARN: Request rejected remote=%s reason=missing_authorization_header", remote)

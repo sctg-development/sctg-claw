@@ -11,18 +11,26 @@ import (
 )
 
 type Config struct {
-	Hostname           string
-	GitHubClientID     string
-	ServerSecret       string
-	GatewayServiceURL  string
-	AllowedEmails      []string
-	AccessTokenTTL     time.Duration
-	RefreshTokenTTL    time.Duration
-	ListenAddr         string
-	DatabasePath       string
-	GitHubAPIBaseURL   string
-	MaxMessageSize     int64
-	PollIntervalScale  float64
+	Hostname          string
+	GitHubClientID    string
+	ServerSecret      string
+	GatewayServiceURL string
+	AllowedEmails     []string
+	AccessTokenTTL    time.Duration
+	RefreshTokenTTL   time.Duration
+	ListenAddr        string
+	DatabasePath      string
+	GitHubAPIBaseURL  string
+	MaxMessageSize    int64
+	PollIntervalScale float64
+
+	// TailnetEnabled authenticates any verified Tailscale/Headscale peer
+	// (see internal/tailnet) as TailnetIdentity, bypassing the GitHub Device
+	// Flow entirely. Tailnet membership is the trust boundary; every peer
+	// gets the same forwarded identity, there is no per-user allowlist.
+	TailnetEnabled  bool
+	TailnetSocket   string
+	TailnetIdentity string
 }
 
 func LoadConfig() (*Config, error) {
@@ -39,6 +47,9 @@ func LoadConfig() (*Config, error) {
 		GitHubAPIBaseURL:  getEnv("GITHUB_API_BASE_URL", "https://api.github.com"),
 		MaxMessageSize:    parseInt(getEnv("MAX_MESSAGE_SIZE", "16777216"), 16777216),
 		PollIntervalScale: parseFloat(getEnv("POLL_INTERVAL_SCALE", "1.5"), 1.5),
+		TailnetEnabled:    getEnv("TAILNET_ENABLED", "false") == "true",
+		TailnetSocket:     getEnv("TAILNET_SOCKET", "/run/tailscale/tailscaled.sock"),
+		TailnetIdentity:   getEnv("TAILNET_IDENTITY", ""),
 	}
 
 	if cfg.GitHubClientID == "" {
@@ -55,6 +66,10 @@ func LoadConfig() (*Config, error) {
 
 	if len(cfg.AllowedEmails) == 0 {
 		return nil, fmt.Errorf("ALLOWED_EMAILS must contain at least one email")
+	}
+
+	if cfg.TailnetEnabled && cfg.TailnetIdentity == "" {
+		return nil, fmt.Errorf("TAILNET_IDENTITY is required when TAILNET_ENABLED is true")
 	}
 
 	return cfg, nil
