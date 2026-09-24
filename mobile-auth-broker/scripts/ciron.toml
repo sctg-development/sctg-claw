@@ -26,8 +26,21 @@ autostart = true
 restart = "always"
 log_forward = true
 
+# --netfilter-mode=off: this container runs as a non-root UID with only
+# NET_ADMIN/NET_RAW (see the Helm chart's containerSecurityContext), not full
+# root. tailscaled's default netfilter mode manages iptables/nftables rules
+# for subnet-router/exit-node NAT, and the nft backend's rule-set-generation
+# lookup hard-checks effective UID 0 regardless of capabilities held ("you
+# must be root"), which otherwise fills the log with "Permission denied (you
+# must be root)" on every start. This node is a plain tailnet peer (no
+# subnet routes, no exit node advertised), so it has no NAT rules to manage
+# in the first place -- routing tailnet traffic to/from the app only needs
+# the TUN device and the kernel routing table, both already covered by
+# NET_ADMIN. --netfilter-mode is a `tailscale up`/`set` flag, not a
+# `tailscaled` one -- passing it to tailscaled itself fails argument parsing
+# ("flag provided but not defined") and the daemon never starts.
 [program.tailscale]
-command = 'bash -c "tailscale --socket=/run/tailscale/tailscaled.sock up --authkey=${TAILNET_AUTHKEY} --hostname=${TAILNET_HOSTNAME:-mobile-claw-broker} --login-server=${TAILNET_LOGIN_SERVER:-https://login.tailscale.com}"'
+command = 'bash -c "tailscale --socket=/run/tailscale/tailscaled.sock up --netfilter-mode=off --authkey=${TAILNET_AUTHKEY} --hostname=${TAILNET_HOSTNAME:-mobile-claw-broker} --login-server=${TAILNET_LOGIN_SERVER:-https://login.tailscale.com}"'
 autostart = true
 restart = "on-failure"
 log_forward = true
