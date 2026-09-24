@@ -54,6 +54,9 @@ then forwards to the Gateway as a trusted identity.
 - `internal/db` — SQLite storage (devices, access/refresh sessions, audit log).
 - `internal/tailnet` — Tailscale/Headscale peer verification for the tailnet
   bypass.
+- `internal/tlscert` — self-managed Let's Encrypt certificate (ACME DNS-01
+  against Cloudflare) for the [self-managed TLS](#self-managed-tls) HTTPS
+  listeners.
 - `internal/config` — environment-variable configuration and validation.
 - `internal/models`, `internal/utils` — shared types and token/crypto helpers.
 - `tools/device-flow-validate` — a standalone Rust CLI that exercises the full
@@ -123,6 +126,78 @@ See the [`sctg-claw` chart's `values.yaml`](../sctg-claw/values.yaml) under
 hostname, login server, TUN mode, forwarded identity, and the tailnet CIDR
 opened in the pod's `NetworkPolicy`).
 
+## Self-managed TLS
+
+The official OpenClaw native clients (iOS, macOS, Android) hard-require an
+`https://` gateway address for their sign-in flow — a `ws://`/`http://` URL is
+rejected client-side before any connection is even attempted (see the macOS
+app's `CloudflareAccessLogin.validateGateway`, which requires
+`url.scheme == "https"`). That's a problem for the [tailnet
+bypass](#tailnet-bypass): a tailnet MagicDNS hostname has no
+browser/OS-trusted certificate of its own, and `tailscale cert` (Tailscale's
+own free-certificate feature) needs ACME support on the control server, which
+most self-hosted Headscale deployments don't have.
+
+`internal/tlscert` solves this by having the broker obtain and renew its own
+publicly-trusted Let's Encrypt certificate, directly — no `cert-manager`, no
+external `lego`/`certbot` process, no separate supervised program, just the
+[`go-acme/lego`](https://github.com/go-acme/lego) library used programmatically
+inside this same binary:
+
+1. On startup, if `TLS_ENABLED=true`, it looks for a cached certificate under
+   `TLS_CERT_CACHE_DIR`. If found and not close to expiry, it's loaded and used
+   as-is.
+2. Otherwise it requests one from Let's Encrypt via **ACME DNS-01** against
+   **Cloudflare DNS**: it proves ownership of `TLS_DOMAIN` by creating a
+   short-lived `_acme-challenge` TXT record through the Cloudflare API (token
+   in `TLS_CLOUDFLARE_API_TOKEN`), then removes it once validated. DNS-01 needs
+   no public inbound traffic at all (unlike HTTP-01), which fits a tailnet
+   hostname that plain internet clients can't reach anyway.
+3. The certificate and the ACME account's own key are written to
+   `TLS_CERT_CACHE_DIR` so restarts reuse them instead of re-issuing (and don't
+   burn Let's Encrypt's rate limits).
+4. A background loop checks every 12h and renews starting 30 days before
+   expiry, without needing a restart — `tls.Config.GetCertificate` always
+   returns the current in-memory certificate.
+5. `TLS_PORTS` (default `443`) opens additional HTTPS listeners alongside
+   whatever `LISTEN_PORTS`/`LISTEN_ADDR` already serve in plain HTTP. Both use
+   the exact same handler; only the transport differs.
+
+### Getting a Cloudflare API token
+
+Create one at <https://dash.cloudflare.com/profile/api-tokens> → **Create
+Token** → **Custom token**, scoped to the zone that hosts `TLS_DOMAIN`:
+
+- **Permissions**: `Zone` → `DNS` → `Edit`, and `Zone` → `Zone` → `Read` (the
+  DNS-01 solver looks up the zone before creating the challenge record).
+- **Zone Resources**: `Include` → `Specific zone` → your zone (not "All
+  zones").
+
+Don't reuse a broader token (e.g. one already used for a Cloudflare Tunnel) —
+create a dedicated one scoped to just this zone, and don't commit it; pass it
+via `TLS_CLOUDFLARE_API_TOKEN` (or the chart's `mobileAuthBroker.tls.existingSecret`
+to source it from a Secret you manage yourself).
+
+### Privileged ports
+
+`TLS_PORTS`' default (`443`) is below 1024 and needs `CAP_NET_BIND_SERVICE` to
+bind as the non-root container user. Rather than running as root, the
+Dockerfile sets that as a **file capability** directly on the compiled binary
+(`setcap cap_net_bind_service+eip /app/mobile-auth-broker`) — the same
+approach already used for `tailscaled`'s `CAP_NET_ADMIN`/`CAP_NET_RAW` in the
+[tailnet bypass](#tailnet-bypass). Two things this depends on, both handled by
+the Helm chart automatically:
+
+- `securityContext.allowPrivilegeEscalation: true` — file capabilities are
+  only honored on `exec()` when `PR_SET_NO_NEW_PRIVS` is unset, which
+  `allowPrivilegeEscalation: false` (the container's normal default) requests.
+- `setcap` must run **after** any `chown` of the binary, not before —
+  `chown` strips a file's `security.capability` xattr, which this Dockerfile
+  learned the hard way.
+
+If you only use ports ≥1024, none of this applies and the container keeps its
+tighter default security context.
+
 ## Configuration
 
 All configuration is via environment variables (`internal/config`). See
@@ -137,7 +212,8 @@ All configuration is via environment variables (`internal/config`). See
 | `GATEWAY_SERVICE_URL` | no | `http://sctg-claw:18789` | In-cluster URL of the OpenClaw Gateway to proxy to. |
 | `ACCESS_TOKEN_TTL` | no | `1h` | Lifetime of an access token. |
 | `REFRESH_TOKEN_TTL` | no | `720h` | Lifetime of a refresh token. |
-| `LISTEN_ADDR` | no | `:8080` | Address the HTTP/WS server binds. |
+| `LISTEN_ADDR` | no | `:8080` | Address the HTTP/WS server binds. Ignored when `LISTEN_PORTS` is set. |
+| `LISTEN_PORTS` | no | derived from `LISTEN_ADDR` | Comma-separated list of plain-HTTP ports to listen on simultaneously (e.g. `80,8080,18789`), all serving the same handler. |
 | `DATABASE_PATH` | no | `/data/broker.db` | SQLite database file. |
 | `GITHUB_API_BASE_URL` | no | `https://api.github.com` | REST API base (device-flow OAuth calls always go to `github.com`); override for a GitHub Enterprise instance. |
 | `MAX_MESSAGE_SIZE` | no | `16777216` (16MB) | Max WebSocket message size, matched to the iOS client. |
@@ -149,6 +225,13 @@ All configuration is via environment variables (`internal/config`). See
 | `TAILNET_HOSTNAME` | tailnet bypass only | `mobile-claw-broker` | Tailnet hostname for this node (`ciron.toml`). |
 | `TAILNET_LOGIN_SERVER` | tailnet bypass only | `https://login.tailscale.com` | Tailscale/Headscale control server (`ciron.toml`). |
 | `TAILNET_TUN_MODE` | tailnet bypass only | `tailscale0` | `tailscaled -tun` value (`ciron.toml`); must be a real interface, not `userspace-networking`. |
+| `TLS_ENABLED` | no | `false` | Turn on [self-managed TLS](#self-managed-tls). |
+| `TLS_PORTS` | no | `443` | Comma-separated list of HTTPS ports, in addition to `LISTEN_PORTS`/`LISTEN_ADDR` (which stay plain HTTP). |
+| `TLS_DOMAIN` | required if `TLS_ENABLED=true` | — | Hostname the certificate covers; must resolve to wherever clients actually reach this broker. |
+| `TLS_ACME_EMAIL` | required if `TLS_ENABLED=true` | — | Contact address for the Let's Encrypt account (expiry/problem notifications). |
+| `TLS_CLOUDFLARE_API_TOKEN` | required if `TLS_ENABLED=true` | — | Cloudflare API token scoped to `Zone:Read` + `DNS:Edit` on the zone hosting `TLS_DOMAIN`. See [Getting a Cloudflare API token](#getting-a-cloudflare-api-token). |
+| `TLS_CERT_CACHE_DIR` | no | `/data/certs` | Where the obtained certificate and ACME account key are cached across restarts. Put this on a persistent volume. |
+| `TLS_ACME_STAGING` | no | `false` | Use Let's Encrypt's staging environment (browser-untrusted, effectively unlimited) instead of production — for testing the ACME flow without burning rate limits. |
 
 ## Development
 
@@ -181,24 +264,37 @@ make multi-arch                   # linux/amd64+arm64, buildx, pushes
 The image is a multi-stage build: the Go binary and `cirond` (the process
 manager used when the [tailnet bypass](#tailnet-bypass) is enabled) are each
 built in their own stage and copied into a `debian:bookworm-slim` final
-image alongside the apt-packaged `tailscale`/`tailscaled` binaries. The
-final image runs as a non-root user; when the tailnet bypass is enabled, the
-Helm chart grants that user the `NET_ADMIN`/`NET_RAW` capabilities needed for
-a real TUN device instead of running the container as root.
+image alongside the apt-packaged `tailscale`/`tailscaled` binaries. The final
+image runs as a non-root user throughout; both `tailscaled` (real TUN,
+tailnet bypass) and the broker binary itself (privileged TLS ports, see
+[Self-managed TLS](#self-managed-tls)) get their required capabilities as
+**file capabilities** (`setcap`) rather than by running as root — the Helm
+chart grants the matching pod-level capabilities and
+`allowPrivilegeEscalation: true` only when a feature that needs them is
+actually enabled.
+
+Building requires Go 1.25+ (bumped from 1.21 by the `go-acme/lego` ACME
+client dependency).
 
 ## Deployment
 
 This service is deployed as part of the [`sctg-claw`](../sctg-claw) Helm
 chart, gated behind `mobileAuthBroker.enabled`. The chart wires up:
 
-- a `Secret` for `SERVER_SECRET`/`GITHUB_CLIENT_ID`,
+- a `Secret` for `SERVER_SECRET`/`GITHUB_CLIENT_ID` (and, when self-managed
+  TLS is enabled without `mobileAuthBroker.tls.existingSecret`, the
+  Cloudflare API token alongside them),
 - a `ConfigMap` for `ALLOWED_EMAILS`,
-- a `PersistentVolumeClaim` for the SQLite database,
+- a `PersistentVolumeClaim` for the SQLite database (and, when TLS is
+  enabled, the certificate cache under the same volume),
 - a `NetworkPolicy` restricting ingress to the Cloudflare Tunnel pod (plus, if
   the tailnet bypass is enabled, direct WireGuard ingress from the tailnet
   CIDR),
-- and, for the tailnet bypass, the `/dev/net/tun` device mount and
-  `TAILNET_*` environment variables described above.
+- for the tailnet bypass, the `/dev/net/tun` device mount and `TAILNET_*`
+  environment variables described above,
+- and, for self-managed TLS, the `TLS_*` environment variables and the
+  extra `NET_BIND_SERVICE` capability when a configured TLS port needs it
+  (see [Privileged ports](#privileged-ports)).
 
 See `sctg-claw/values.yaml`'s `mobileAuthBroker` section for the full set of
 chart values.
@@ -238,3 +334,9 @@ seconds (default 900, matching GitHub's own device-code expiry).
 - Keep this broker reachable only from where the Gateway's
   `gateway.trustedProxies` says it's reachable from — it is a trusted
   identity source for the Gateway, exactly like Cloudflare's oauth2-proxy.
+- The Cloudflare API token for [self-managed TLS](#self-managed-tls) can
+  create/delete DNS records in the zone it's scoped to. Scope it to exactly
+  that one zone (`Zone:Read` + `DNS:Edit`, nothing broader), keep it out of
+  version control, and don't reuse a token already used for something else
+  (e.g. a Cloudflare Tunnel) — a leaked broader token has a correspondingly
+  broader blast radius.

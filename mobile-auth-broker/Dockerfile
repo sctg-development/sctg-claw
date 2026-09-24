@@ -46,20 +46,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # kmod (modprobe): used by the Helm chart's privileged tailnet-bypass init
 # container to load the host's `tun` kernel module -- see
 # templates/mobile-auth-broker.yaml.
-#
-# File capabilities on tailscaled itself: for a non-root container UID,
-# Kubernetes/containerd only puts securityContext.capabilities.add into the
-# process's BOUNDING set, not its effective/permitted set (confirmed via
-# /proc/1/status: CapBnd had NET_ADMIN/NET_RAW, CapEff was all zero) --
-# tailscaled's own TUNSETIFF calls got EPERM despite the pod manifest
-# correctly declaring the capabilities. File capabilities are the standard
-# fix: exec'ing a binary with its own cap_net_admin/cap_net_raw file caps
-# pulls them from the (still-present) bounding set into the new process's
-# effective set, without needing full root. This also requires
-# allowPrivilegeEscalation: true in the pod's securityContext -- the default
-# false sets PR_SET_NO_NEW_PRIVS, which the kernel explicitly uses to refuse
-# granting file capabilities on exec regardless of this setcap.
-RUN setcap 'cap_net_admin,cap_net_raw+eip' /usr/sbin/tailscaled
 
 # cirond process manager -- supervises mobile-auth-broker plus, when the
 # tailnet bypass is enabled (see scripts/ciron.toml), tailscaled/tailscale.
@@ -79,6 +65,28 @@ COPY scripts/ciron.toml /etc/ciron/ciron.toml
 RUN addgroup --system appgroup && adduser --system --ingroup appgroup appuser && \
     mkdir -p /data /run/tailscale /var/lib/tailscale && \
     chown -R appuser:appgroup /app /data /run/tailscale /var/lib/tailscale
+
+# File capabilities: for a non-root container UID, Kubernetes/containerd
+# only puts securityContext.capabilities.add into the process's BOUNDING
+# set, not its effective/permitted set (confirmed live via /proc/1/status:
+# CapBnd had the requested capabilities, CapEff was all zero) -- both
+# tailscaled's TUNSETIFF (real TUN device, tailnet bypass) and
+# mobile-auth-broker's own bind(2) on privileged TLS ports like 443 (see
+# internal/tlscert) got EPERM despite the pod manifest correctly declaring
+# the capabilities. File capabilities are the standard fix: exec'ing a
+# binary with its own file caps pulls them from the (still-present)
+# bounding set into the new process's effective set, without needing full
+# root. This also requires allowPrivilegeEscalation: true in the pod's
+# securityContext -- the default false sets PR_SET_NO_NEW_PRIVS, which the
+# kernel explicitly uses to refuse granting file capabilities on exec
+# regardless of this setcap.
+#
+# MUST run after the chown above, not before: chown strips a file's
+# security.capability xattr (confirmed live -- setcap-then-chown silently
+# produced a binary with no capabilities at all, while tailscaled, never
+# touched by that chown since it lives outside /app, kept its own).
+RUN setcap 'cap_net_admin,cap_net_raw+eip' /usr/sbin/tailscaled && \
+    setcap 'cap_net_bind_service+eip' /app/mobile-auth-broker
 USER appuser
 
 EXPOSE 8080
