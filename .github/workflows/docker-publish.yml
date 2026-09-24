@@ -9,6 +9,7 @@ on:
       - garmin-cli
       - openclaw-coach
       - .github/workflows/docker-publish.yml
+      - scripts/ciron.toml
   pull_request:
     branches: [ main ]
     paths:
@@ -17,6 +18,7 @@ on:
       - garmin-cli
       - openclaw-coach  
       - .github/workflows/docker-publish.yml
+      - scripts/ciron.toml
 
 env:
   REGISTRY: docker.io
