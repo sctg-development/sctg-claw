@@ -185,18 +185,29 @@ bind as the non-root container user. Rather than running as root, the
 Dockerfile sets that as a **file capability** directly on the compiled binary
 (`setcap cap_net_bind_service+eip /app/mobile-auth-broker`) — the same
 approach already used for `tailscaled`'s `CAP_NET_ADMIN`/`CAP_NET_RAW` in the
-[tailnet bypass](#tailnet-bypass). Two things this depends on, both handled by
-the Helm chart automatically:
+[tailnet bypass](#tailnet-bypass).
 
-- `securityContext.allowPrivilegeEscalation: true` — file capabilities are
-  only honored on `exec()` when `PR_SET_NO_NEW_PRIVS` is unset, which
-  `allowPrivilegeEscalation: false` (the container's normal default) requests.
-- `setcap` must run **after** any `chown` of the binary, not before —
-  `chown` strips a file's `security.capability` xattr, which this Dockerfile
-  learned the hard way.
+This capability is baked into the binary **unconditionally**, by every build
+of this image — the Dockerfile has no way to know at build time whether a
+given deployment will ever set `TLS_ENABLED=true`. That matters because a
+capability-bearing binary can only be `exec`'d by a process whose own
+capability *bounding set* already contains that capability; otherwise the
+kernel refuses the `exec` outright with `EPERM`, before the program even
+starts running — it doesn't matter that the process would never actually
+*use* the capability. Concretely, this means the Helm chart grants
+`NET_BIND_SERVICE` (and `allowPrivilegeEscalation: true`, required for file
+capabilities to be honored on `exec` at all — `allowPrivilegeEscalation:
+false`, the container's normal default, sets `PR_SET_NO_NEW_PRIVS`, which the
+kernel uses to explicitly refuse them) **in every mode**, including the
+plain default with TLS and the tailnet bypass both disabled — not only when
+`TLS_ENABLED=true`. Omitting it there was an actual outage caught during
+development ("exec /app/mobile-auth-broker: operation not permitted",
+crash-looping every deployment of the image regardless of configuration), not
+a theoretical concern.
 
-If you only use ports ≥1024, none of this applies and the container keeps its
-tighter default security context.
+One more Dockerfile-ordering detail this depends on: `setcap` must run
+**after** any `chown` of the binary, not before — `chown` strips a file's
+`security.capability` xattr.
 
 ## Configuration
 
@@ -292,9 +303,9 @@ chart, gated behind `mobileAuthBroker.enabled`. The chart wires up:
   CIDR),
 - for the tailnet bypass, the `/dev/net/tun` device mount and `TAILNET_*`
   environment variables described above,
-- and, for self-managed TLS, the `TLS_*` environment variables and the
-  extra `NET_BIND_SERVICE` capability when a configured TLS port needs it
-  (see [Privileged ports](#privileged-ports)).
+- and, for self-managed TLS, the `TLS_*` environment variables. The
+  `NET_BIND_SERVICE` capability (see [Privileged ports](#privileged-ports))
+  is granted unconditionally in every mode, not only when TLS is enabled.
 
 See `sctg-claw/values.yaml`'s `mobileAuthBroker` section for the full set of
 chart values.

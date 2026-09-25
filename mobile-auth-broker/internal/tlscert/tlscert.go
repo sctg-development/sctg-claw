@@ -31,10 +31,23 @@ import (
 
 	"github.com/go-acme/lego/v4/certcrypto"
 	"github.com/go-acme/lego/v4/certificate"
+	"github.com/go-acme/lego/v4/challenge/dns01"
 	"github.com/go-acme/lego/v4/lego"
 	"github.com/go-acme/lego/v4/providers/dns/cloudflare"
 	"github.com/go-acme/lego/v4/registration"
 )
+
+// propagationNameservers are used to check the DNS-01 TXT record has
+// propagated before telling Let's Encrypt to validate it. lego defaults to
+// whatever /etc/resolv.conf points at, which inside a Kubernetes pod is the
+// cluster's own CoreDNS -- an in-cluster resolver has no particular reason to
+// see a record that was just created on Cloudflare's authoritative servers
+// promptly (or, in a pod also running tailscaled, resolv.conf may point at
+// Tailscale's MagicDNS resolver instead, which has the same problem for a
+// public record). Querying Cloudflare's own public resolvers directly
+// sidesteps both: the record is already live there the moment the API call
+// that created it returns.
+var propagationNameservers = []string{"1.1.1.1:53", "1.0.0.1:53"}
 
 // renewBefore is how far ahead of expiry a certificate is renewed.
 const renewBefore = 30 * 24 * time.Hour
@@ -196,7 +209,7 @@ func (m *Manager) obtain() error {
 	if err != nil {
 		return fmt.Errorf("configuring Cloudflare DNS-01 provider: %w", err)
 	}
-	if err := client.Challenge.SetDNS01Provider(provider); err != nil {
+	if err := client.Challenge.SetDNS01Provider(provider, dns01.AddRecursiveNameservers(propagationNameservers)); err != nil {
 		return fmt.Errorf("registering DNS-01 provider: %w", err)
 	}
 
