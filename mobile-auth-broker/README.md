@@ -121,6 +121,16 @@ When the bypass is disabled (the default), the Helm chart overrides the
 container's command to run the broker binary directly, and none of the
 tailscale plumbing is invoked.
 
+tailscaled's actual state (its node/machine keys, i.e. its identity on the
+tailnet) lives under `/data/tailscale-state` — the broker's existing
+persistent volume, the same one the SQLite database and the [TLS
+certificate cache](#self-managed-tls) already use — not a throwaway
+`emptyDir`. Losing that state on every pod restart would make tailscaled
+re-register as a brand new tailnet node each time (a new node key, and
+likely a new tailnet IP), rather than reconnecting as the same node Headscale
+already knows about. Only `/run/tailscale` (the control socket directory) is
+still an `emptyDir`; that one is fine to lose on every restart.
+
 See the [`sctg-claw` chart's `values.yaml`](../sctg-claw/values.yaml) under
 `mobileAuthBroker.tailnet` for the Helm-level configuration (auth key,
 hostname, login server, TUN mode, forwarded identity, and the tailnet CIDR
@@ -296,8 +306,10 @@ chart, gated behind `mobileAuthBroker.enabled`. The chart wires up:
   TLS is enabled without `mobileAuthBroker.tls.existingSecret`, the
   Cloudflare API token alongside them),
 - a `ConfigMap` for `ALLOWED_EMAILS`,
-- a `PersistentVolumeClaim` for the SQLite database (and, when TLS is
-  enabled, the certificate cache under the same volume),
+- a `PersistentVolumeClaim` for the SQLite database, shared by the [TLS
+  certificate cache](#self-managed-tls) and, for the tailnet bypass,
+  tailscaled's own node state (both under the same volume, so neither needs
+  a PVC of its own),
 - a `NetworkPolicy` restricting ingress to the Cloudflare Tunnel pod (plus, if
   the tailnet bypass is enabled, direct WireGuard ingress from the tailnet
   CIDR),

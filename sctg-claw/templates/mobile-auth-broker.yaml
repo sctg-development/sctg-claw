@@ -116,16 +116,20 @@ spec:
         # module) can make modprobe itself report not-found while the device
         # still works, so the real check is the `test -c` that follows.
         #
-        # Also chowns the tailscale state/run emptyDirs to the main
-        # container's UID: kubelet creates emptyDir volumes owned by root,
-        # and podSecurityContext.fsGroup only ever adds group write access,
-        # never changes the owning UID. tailscaled's own store.New does a
-        # `chmod` on its state directory at startup (hardening it to 0700),
-        # which requires being the UID *owner*, not just group-writable --
-        # confirmed live: "store.New failed: creating state directory: chmod
+        # Also chowns the tailscale-run emptyDir (the tailscaled.sock
+        # directory) to the main container's UID: kubelet creates emptyDir
+        # volumes owned by root, and podSecurityContext.fsGroup only ever
+        # adds group write access, never changes the owning UID. tailscaled's
+        # state directory itself doesn't need this anymore -- it now lives
+        # under /data (the broker's persistent volume, see scripts/ciron.toml),
+        # which tailscaled creates itself as its own UID on first run. Before
+        # that move, tailscaled's own store.New `chmod` on its (root-owned
+        # emptyDir) state directory at startup failed requiring UID
+        # *ownership*, not just group-writability -- confirmed live:
+        # "store.New failed: creating state directory: chmod
         # /var/lib/tailscale: operation not permitted; starting with
         # in-memory store with a health warning", after which tailscaled
-        # permanently refuses `tailscale up` with "cannot start backend when
+        # permanently refused `tailscale up` with "cannot start backend when
         # state store is unhealthy" for the rest of that process's life.
         # `privileged: true` alone does NOT hand this container's process
         # CAP_CHOWN/CAP_SYS_MODULE unless it also runs as UID 0: confirmed
@@ -154,14 +158,12 @@ spec:
                 echo "ERROR: /dev/net/tun still not a char device after modprobe -- this node cannot give the tailnet bypass a real TUN device" >&2
                 exit 1
               fi
-              chown -R {{ .Values.mobileAuthBroker.containerSecurityContext.runAsUser }} /run/tailscale /var/lib/tailscale
+              chown -R {{ .Values.mobileAuthBroker.containerSecurityContext.runAsUser }} /run/tailscale
           volumeMounts:
             - name: dev-net-tun
               mountPath: /dev/net/tun
             - name: tailscale-run
               mountPath: /run/tailscale
-            - name: tailscale-state
-              mountPath: /var/lib/tailscale
       {{- end }}
       containers:
         - name: mobile-auth-broker
@@ -342,8 +344,6 @@ spec:
               mountPath: /dev/net/tun
             - name: tailscale-run
               mountPath: /run/tailscale
-            - name: tailscale-state
-              mountPath: /var/lib/tailscale
             {{- end }}
       volumes:
         - name: data
@@ -358,9 +358,11 @@ spec:
           hostPath:
             path: /dev/net/tun
             type: CharDevice
+        # tailscaled's actual state (node/machine keys, etc.) now lives
+        # under /data (the "data" volume above, already mounted) -- see
+        # scripts/ciron.toml. This is just its ephemeral control socket
+        # directory, fine to lose on every restart.
         - name: tailscale-run
-          emptyDir: {}
-        - name: tailscale-state
           emptyDir: {}
         {{- end }}
 ---

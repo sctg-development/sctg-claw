@@ -20,8 +20,19 @@ log_forward = true
 # Real TUN ("-tun tailscale0"), not userspace-networking: the tailnet bypass
 # (internal/tailnet) needs the peer's genuine source address on
 # r.RemoteAddr, which userspace-networking's loopback NAT would hide.
+#
+# --state lives under /data (the broker's existing persistent volume, same
+# one the SQLite DB and internal/tlscert's certificate cache already use),
+# not /var/lib/tailscale: that used to be an emptyDir, wiped on every pod
+# restart, so tailscaled re-registered as a brand new tailnet node each time
+# (new node key, likely a new tailnet IP, and Headscale gaining a fresh
+# duplicate node every restart instead of reusing the last one). tailscaled
+# creates this directory itself on first run, as this container's own UID --
+# unlike the old emptyDir (created root-owned by kubelet, needing the
+# privileged init container's chown before tailscaled's own chmod on it
+# would succeed) there's nothing here for that init container to fix up.
 [program.tailscaled]
-command = 'bash -c "/usr/sbin/tailscaled --socket=/run/tailscale/tailscaled.sock --port=41641 --state=/var/lib/tailscale/tailscaled.state --encrypt-state=false -tun ${TAILNET_TUN_MODE:-tailscale0}"'
+command = 'bash -c "/usr/sbin/tailscaled --socket=/run/tailscale/tailscaled.sock --port=41641 --state=/data/tailscale-state/tailscaled.state --encrypt-state=false -tun ${TAILNET_TUN_MODE:-tailscale0}"'
 autostart = true
 restart = "always"
 log_forward = true
