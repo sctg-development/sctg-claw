@@ -28,6 +28,9 @@ type: Opaque
 stringData:
   serverSecret: {{ .Values.mobileAuthBroker.serverSecret | default (randAlphaNum 64) | quote }}
   githubClientID: {{ .Values.mobileAuthBroker.githubClientID | quote }}
+  {{- if and .Values.mobileAuthBroker.tls.enabled (not .Values.mobileAuthBroker.tls.existingSecret.name) }}
+  cloudflareApiToken: {{ required "mobileAuthBroker.tls.cloudflareApiToken is required when mobileAuthBroker.tls.enabled is true and no existingSecret is set" .Values.mobileAuthBroker.tls.cloudflareApiToken | quote }}
+  {{- end }}
 {{- end }}
 ---
 
@@ -102,6 +105,64 @@ spec:
       affinity:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- if .Values.mobileAuthBroker.tailnet.enabled }}
+      initContainers:
+        # Loading a kernel module is a host-wide operation that NET_ADMIN/
+        # NET_RAW alone cannot do (it needs CAP_SYS_MODULE and the host's
+        # /lib/modules) -- mirrors the cloudflared subchart's own
+        # enable-ip-forward init container for the same reason. Runs once,
+        # privileged, before the unprivileged main container starts; "|| true"
+        # on modprobe because a kernel with TUN built in (not as a loadable
+        # module) can make modprobe itself report not-found while the device
+        # still works, so the real check is the `test -c` that follows.
+        #
+        # Also chowns the tailscale state/run emptyDirs to the main
+        # container's UID: kubelet creates emptyDir volumes owned by root,
+        # and podSecurityContext.fsGroup only ever adds group write access,
+        # never changes the owning UID. tailscaled's own store.New does a
+        # `chmod` on its state directory at startup (hardening it to 0700),
+        # which requires being the UID *owner*, not just group-writable --
+        # confirmed live: "store.New failed: creating state directory: chmod
+        # /var/lib/tailscale: operation not permitted; starting with
+        # in-memory store with a health warning", after which tailscaled
+        # permanently refuses `tailscale up` with "cannot start backend when
+        # state store is unhealthy" for the rest of that process's life.
+        # `privileged: true` alone does NOT hand this container's process
+        # CAP_CHOWN/CAP_SYS_MODULE unless it also runs as UID 0: confirmed
+        # live via /proc/self/status -- privileged-but-non-root put every
+        # requested capability in CapBnd (the ceiling) while CapPrm/CapEff
+        # stayed all-zero, and chown failed with EPERM. Only UID 0 gets the
+        # kernel's automatic bounding-set-becomes-effective promotion (the
+        # same reason tailscaled itself needed file capabilities via setcap
+        # instead, since that binary runs as the main container's non-root
+        # UID). This container is privileged and root only for this one
+        # setup step, before the unprivileged, non-root main container
+        # starts.
+        - name: load-tun-module
+          image: "{{ .Values.mobileAuthBroker.image.repository }}:{{ .Values.mobileAuthBroker.image.tag }}"
+          imagePullPolicy: {{ .Values.mobileAuthBroker.image.pullPolicy | default "IfNotPresent" }}
+          securityContext:
+            privileged: true
+            runAsUser: 0
+            runAsNonRoot: false
+          command:
+            - sh
+            - -c
+            - |
+              modprobe tun || echo "modprobe tun failed (kernel may already have it built in)"
+              if [ ! -c /dev/net/tun ]; then
+                echo "ERROR: /dev/net/tun still not a char device after modprobe -- this node cannot give the tailnet bypass a real TUN device" >&2
+                exit 1
+              fi
+              chown -R {{ .Values.mobileAuthBroker.containerSecurityContext.runAsUser }} /run/tailscale /var/lib/tailscale
+          volumeMounts:
+            - name: dev-net-tun
+              mountPath: /dev/net/tun
+            - name: tailscale-run
+              mountPath: /run/tailscale
+            - name: tailscale-state
+              mountPath: /var/lib/tailscale
+      {{- end }}
       containers:
         - name: mobile-auth-broker
           image: "{{ .Values.mobileAuthBroker.image.repository }}:{{ .Values.mobileAuthBroker.image.tag }}"
@@ -116,6 +177,16 @@ spec:
           ports:
             - containerPort: {{ .Values.mobileAuthBroker.service.port }}
               name: http
+            {{- range $i, $port := .Values.mobileAuthBroker.extraListenPorts }}
+            - containerPort: {{ $port }}
+              name: http-extra-{{ $i }}
+            {{- end }}
+            {{- if .Values.mobileAuthBroker.tls.enabled }}
+            {{- range $i, $port := .Values.mobileAuthBroker.tls.ports }}
+            - containerPort: {{ $port }}
+              name: https-{{ $i }}
+            {{- end }}
+            {{- end }}
           env:
             - name: BROKER_HOSTNAME
               value: {{ .Values.mobileAuthBroker.hostname | quote }}
@@ -142,6 +213,10 @@ spec:
               value: {{ .Values.mobileAuthBroker.refreshTokenTTL | default "720h" | quote }}
             - name: LISTEN_ADDR
               value: ":{{ .Values.mobileAuthBroker.service.port }}"
+            {{- if .Values.mobileAuthBroker.extraListenPorts }}
+            - name: LISTEN_PORTS
+              value: {{ prepend .Values.mobileAuthBroker.extraListenPorts .Values.mobileAuthBroker.service.port | join "," | quote }}
+            {{- end }}
             - name: DATABASE_PATH
               value: "/data/broker.db"
             - name: MAX_MESSAGE_SIZE
@@ -164,25 +239,82 @@ spec:
             - name: TAILNET_TUN_MODE
               value: {{ .Values.mobileAuthBroker.tailnet.tunMode | quote }}
             {{- end }}
+            {{- if .Values.mobileAuthBroker.tls.enabled }}
+            - name: TLS_ENABLED
+              value: "true"
+            - name: TLS_PORTS
+              value: {{ .Values.mobileAuthBroker.tls.ports | join "," | quote }}
+            - name: TLS_DOMAIN
+              value: {{ required "mobileAuthBroker.tls.domain is required when mobileAuthBroker.tls.enabled is true" .Values.mobileAuthBroker.tls.domain | quote }}
+            - name: TLS_ACME_EMAIL
+              value: {{ required "mobileAuthBroker.tls.acmeEmail is required when mobileAuthBroker.tls.enabled is true" .Values.mobileAuthBroker.tls.acmeEmail | quote }}
+            - name: TLS_CLOUDFLARE_API_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  {{- if .Values.mobileAuthBroker.tls.existingSecret.name }}
+                  name: {{ .Values.mobileAuthBroker.tls.existingSecret.name }}
+                  key: {{ .Values.mobileAuthBroker.tls.existingSecret.key | default "cloudflareApiToken" }}
+                  {{- else }}
+                  name: {{ include "claw.mobileAuthBrokerSecretName" . }}
+                  key: cloudflareApiToken
+                  {{- end }}
+            - name: TLS_CERT_CACHE_DIR
+              value: {{ .Values.mobileAuthBroker.tls.certCacheDir | quote }}
+            - name: TLS_ACME_STAGING
+              value: {{ .Values.mobileAuthBroker.tls.acmeStaging | quote }}
+            {{- end }}
+          {{- /*
+          The image bakes cap_net_bind_service onto /app/mobile-auth-broker
+          UNCONDITIONALLY (Dockerfile `setcap`, needed for the TLS branch's
+          port 443 -- see internal/tlscert) -- every build of this image
+          carries it, regardless of whether this particular deployment ever
+          enables TLS. A capability-bearing binary can only be exec'd by a
+          process whose own bounding set already contains that capability;
+          otherwise the kernel refuses the exec outright with EPERM, before
+          the program even starts (confirmed live: "exec
+          /app/mobile-auth-broker: operation not permitted", reproduced with
+          plain `docker run --cap-drop ALL`, i.e. this broke every
+          deployment of this image, not just tailnet/TLS ones). So
+          NET_BIND_SERVICE must be granted here unconditionally too, or the
+          container cannot start at all.
+          */}}
           {{- if .Values.mobileAuthBroker.tailnet.enabled }}
-          # tailscaled needs a real TUN device (NET_ADMIN/NET_RAW) and writes
-          # its state/socket under /run and /var/lib -- both explicitly
-          # mounted emptyDirs below, so readOnlyRootFilesystem stays off only
-          # for this mode. Deliberately NOT built via `merge` on top of
+          # tailscaled needs a real TUN device and writes its state/socket
+          # under /run and /var/lib -- both explicitly mounted emptyDirs
+          # below, so readOnlyRootFilesystem stays off only for this mode.
+          # Deliberately NOT built via `merge` on top of
           # mobileAuthBroker.containerSecurityContext: sprig/mergo treats a
           # `false` override as its zero value and silently keeps the base
           # `true`, which would defeat this override.
+          #
+          # allowPrivilegeEscalation MUST be true here, despite the non-root
+          # UID: securityContext.capabilities.add only reaches this process's
+          # BOUNDING capability set, not its effective set (confirmed live --
+          # /proc/1/status showed CapBnd with NET_ADMIN/NET_RAW but CapEff
+          # all zero, and tailscaled's TUNSETIFF failed with EPERM as a
+          # result). The Dockerfile sets file capabilities directly on the
+          # tailscaled binary (`setcap cap_net_admin,cap_net_raw+eip`) as the
+          # fix -- pulling them from the bounding set into the process's
+          # effective set on exec -- but the kernel only honors file
+          # capabilities on exec when PR_SET_NO_NEW_PRIVS is unset, which is
+          # exactly what allowPrivilegeEscalation: false requests.
           securityContext:
-            allowPrivilegeEscalation: {{ .Values.mobileAuthBroker.containerSecurityContext.allowPrivilegeEscalation }}
+            allowPrivilegeEscalation: true
             runAsNonRoot: {{ .Values.mobileAuthBroker.containerSecurityContext.runAsNonRoot }}
             runAsUser: {{ .Values.mobileAuthBroker.containerSecurityContext.runAsUser }}
             readOnlyRootFilesystem: false
             capabilities:
               drop: ["ALL"]
-              add: ["NET_ADMIN", "NET_RAW"]
+              add: ["NET_ADMIN", "NET_RAW", "NET_BIND_SERVICE"]
           {{- else }}
           securityContext:
-            {{- toYaml .Values.mobileAuthBroker.containerSecurityContext | nindent 12 }}
+            allowPrivilegeEscalation: true
+            runAsNonRoot: {{ .Values.mobileAuthBroker.containerSecurityContext.runAsNonRoot }}
+            runAsUser: {{ .Values.mobileAuthBroker.containerSecurityContext.runAsUser }}
+            readOnlyRootFilesystem: {{ .Values.mobileAuthBroker.containerSecurityContext.readOnlyRootFilesystem }}
+            capabilities:
+              drop: ["ALL"]
+              add: ["NET_BIND_SERVICE"]
           {{- end }}
           resources:
             {{- toYaml .Values.mobileAuthBroker.resources | nindent 12 }}
@@ -247,6 +379,18 @@ spec:
     - port: {{ .Values.mobileAuthBroker.service.port }}
       targetPort: http
       name: http
+    {{- range $i, $port := .Values.mobileAuthBroker.extraListenPorts }}
+    - port: {{ $port }}
+      targetPort: http-extra-{{ $i }}
+      name: http-extra-{{ $i }}
+    {{- end }}
+    {{- if .Values.mobileAuthBroker.tls.enabled }}
+    {{- range $i, $port := .Values.mobileAuthBroker.tls.ports }}
+    - port: {{ $port }}
+      targetPort: https-{{ $i }}
+      name: https-{{ $i }}
+    {{- end }}
+    {{- end }}
   selector:
     app.kubernetes.io/name: {{ include "claw.name" . }}-mobile-auth-broker
     app.kubernetes.io/instance: {{ .Release.Name }}
@@ -315,5 +459,21 @@ spec:
       ports:
         - port: 41641
           protocol: UDP
+    {{- end }}
+    {{- if .Values.mobileAuthBroker.tls.enabled }}
+    # internal/tlscert's DNS-01 propagation check queries public resolvers
+    # (Cloudflare's own 1.1.1.1/1.0.0.1, see tlscert.go) directly by design --
+    # the in-cluster CoreDNS the "namespaceSelector: {}" rule above allows has
+    # no particular reason to see a record just created on Cloudflare's
+    # authoritative servers promptly. UDP first, TCP fallback for truncated
+    # responses (large SOA/NS answers).
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
     {{- end }}
 {{- end -}}

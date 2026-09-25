@@ -556,6 +556,83 @@ mobileAuthBroker:
   maxMessageSize: 16777216 # 16MB to match iOS client
   pollIntervalScale: 1.5
 
+  # Extra ports the broker listens on in addition to service.port, e.g. so a
+  # tailnet client can reach it on a bare hostname (80) or the Gateway's own
+  # conventional port (18789) without a client-side port override. All ports
+  # serve the exact same handler; there is no per-port behavior difference.
+  # Example:
+  #   extraListenPorts: [80, 18789]
+  # Ports below 1024 (like 80) need CAP_NET_BIND_SERVICE or root to bind --
+  # containerSecurityContext does not grant this automatically, add
+  # `capabilities.add: ["NET_BIND_SERVICE"]` yourself if you use one.
+  extraListenPorts: []
+
+  # Tailnet bypass: any verified Tailscale/Headscale peer is authenticated as
+  # identityScopes[0] and forwarded to the Gateway, skipping the GitHub
+  # Device Flow entirely. Tailnet membership (your Headscale ACLs) is the
+  # trust boundary for this path -- see internal/tailnet. Requires a real
+  # TUN device (tunMode), not userspace-networking, so the broker sees the
+  # peer's genuine tailnet address. Disabled by default: when disabled, the
+  # image's cirond/tailscale entrypoint is bypassed entirely and the
+  # container just runs the broker binary as before.
+  tailnet:
+    enabled: false
+    authKey: ""
+    hostname: "mobile-claw-broker"
+    loginServer: "https://login.tailscale.com"
+    tunMode: "tailscale0"
+    # First entry is forwarded as X-Forwarded-Email for every verified peer.
+    # Only the first entry is used today; kept as a list for a future
+    # per-peer identity mapping.
+    identityScopes: []
+    # Tailnet/CGNAT range the NetworkPolicy opens for direct (non-DERP-relayed)
+    # WireGuard ingress on tailscaled's UDP port. Match your tailnet's actual
+    # range (Tailscale and Headscale both default to 100.64.0.0/10). Without
+    # this, tailscaled still works over the DERP relay (already allowed by
+    # the existing egress 443/TCP rule), just without direct peer connections.
+    cidr: "100.64.0.0/10"
+
+  # Self-managed TLS: the broker obtains and renews its own publicly-trusted
+  # Let's Encrypt certificate via ACME DNS-01 against Cloudflare DNS (no
+  # external cert-manager, no separate process -- see
+  # mobile-auth-broker/internal/tlscert). This exists because the official
+  # OpenClaw native clients (iOS/macOS/Android) hard-require an https://
+  # gateway URL for their sign-in flow -- ws:///http:// endpoints are
+  # rejected client-side before any connection is attempted -- and a tailnet
+  # MagicDNS hostname has no browser-trusted certificate of its own
+  # (`tailscale cert` needs ACME support on the control server, which most
+  # Headscale deployments don't have).
+  tls:
+    enabled: false
+    # Ports to serve HTTPS on, in addition to service.port/extraListenPorts
+    # (which stay plain HTTP). 443 lets clients use the bare hostname
+    # (https://<domain>) with no port, matching what native clients try by
+    # default.
+    ports: [443]
+    # Hostname the certificate covers. Must resolve to wherever clients
+    # actually reach this broker (e.g. its tailnet MagicDNS name).
+    domain: ""
+    # Contact address for the Let's Encrypt account (required by ACME, used
+    # only for expiry/problem notifications).
+    acmeEmail: ""
+    # Cloudflare API token, scoped to Zone:Read + DNS:Edit on the zone that
+    # hosts `domain` -- nothing broader. Put this in a real secret manager
+    # or --set on the CLI, never commit it. See mobile-auth-broker/README.md
+    # for how to create one.
+    cloudflareApiToken: ""
+    # Existing Secret to read the token from instead of cloudflareApiToken,
+    # e.g. {name: my-secret, key: token}. Takes precedence when name is set.
+    existingSecret:
+      name: ""
+      key: "cloudflareApiToken"
+    # Local cache directory (on the broker's existing persistent volume) for
+    # the obtained certificate and ACME account key, so restarts don't
+    # re-issue/re-register every time.
+    certCacheDir: "/data/certs"
+    # Let's Encrypt staging: unlimited but browser-untrusted certificates,
+    # for testing the ACME flow without hitting production rate limits.
+    acmeStaging: false
+
   service:
     type: ClusterIP
     port: 8080

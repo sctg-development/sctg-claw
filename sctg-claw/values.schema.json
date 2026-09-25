@@ -322,6 +322,100 @@
                     "default": 1.5,
                     "description": "Factor to increase polling interval on slow_down responses."
                 },
+                "extraListenPorts": {
+                    "type": "array",
+                    "items": { "type": "integer" },
+                    "description": "Extra ports the broker listens on in addition to service.port, serving the same handler (e.g. [80, 18789]). Ports below 1024 need CAP_NET_BIND_SERVICE or root."
+                },
+                "tailnet": {
+                    "type": "object",
+                    "description": "Tailnet bypass: authenticate any verified Tailscale/Headscale peer as identityScopes[0], skipping the GitHub Device Flow. Requires a real TUN device (see tunMode). Disabled by default.",
+                    "properties": {
+                        "enabled": {
+                            "type": "boolean",
+                            "default": false,
+                            "description": "Enable the tailnet bypass. Runs the image's cirond/tailscaled/tailscale entrypoint instead of the broker binary directly."
+                        },
+                        "authKey": {
+                            "type": "string",
+                            "description": "Tailscale/Headscale pre-auth key for this node."
+                        },
+                        "hostname": {
+                            "type": "string",
+                            "default": "mobile-claw-broker",
+                            "description": "Tailnet hostname for this node. Keep distinct from the Gateway's tailnet hostname."
+                        },
+                        "loginServer": {
+                            "type": "string",
+                            "default": "https://login.tailscale.com",
+                            "description": "Tailscale/Headscale control server URL."
+                        },
+                        "tunMode": {
+                            "type": "string",
+                            "default": "tailscale0",
+                            "description": "tailscaled -tun value. Must be a real TUN interface name, not userspace-networking, so the broker sees the peer's genuine tailnet address."
+                        },
+                        "identityScopes": {
+                            "type": "array",
+                            "items": { "type": "string" },
+                            "description": "Identity forwarded to the Gateway as X-Forwarded-Email for every verified tailnet peer. Only the first entry is used today. Required (non-empty) when enabled."
+                        },
+                        "cidr": {
+                            "type": "string",
+                            "default": "100.64.0.0/10",
+                            "description": "Tailnet/CGNAT range allowed direct (non-DERP-relayed) WireGuard ingress in the NetworkPolicy."
+                        }
+                    },
+                    "additionalProperties": false
+                },
+                "tls": {
+                    "type": "object",
+                    "description": "Self-managed TLS via ACME DNS-01 against Cloudflare, for native clients whose sign-in flow requires https://. Disabled by default.",
+                    "properties": {
+                        "enabled": {
+                            "type": "boolean",
+                            "default": false,
+                            "description": "Enable the broker's self-managed HTTPS listener."
+                        },
+                        "ports": {
+                            "type": "array",
+                            "items": { "type": "integer" },
+                            "default": [443],
+                            "description": "Ports to serve HTTPS on, in addition to service.port/extraListenPorts (which stay plain HTTP)."
+                        },
+                        "domain": {
+                            "type": "string",
+                            "description": "Hostname the certificate covers. Required (non-empty) when enabled."
+                        },
+                        "acmeEmail": {
+                            "type": "string",
+                            "description": "Contact address for the Let's Encrypt account. Required (non-empty) when enabled."
+                        },
+                        "cloudflareApiToken": {
+                            "type": "string",
+                            "description": "Cloudflare API token scoped to Zone:Read + DNS:Edit on the zone hosting `domain`. Prefer existingSecret for anything beyond local testing."
+                        },
+                        "existingSecret": {
+                            "type": "object",
+                            "properties": {
+                                "name": { "type": "string" },
+                                "key": { "type": "string", "default": "cloudflareApiToken" }
+                            },
+                            "additionalProperties": false
+                        },
+                        "certCacheDir": {
+                            "type": "string",
+                            "default": "/data/certs",
+                            "description": "Local cache directory (on the broker's persistent volume) for the obtained certificate and ACME account key."
+                        },
+                        "acmeStaging": {
+                            "type": "boolean",
+                            "default": false,
+                            "description": "Use Let's Encrypt staging (browser-untrusted, unlimited) instead of production."
+                        }
+                    },
+                    "additionalProperties": false
+                },
                 "service": {
                     "type": "object",
                     "properties": {
