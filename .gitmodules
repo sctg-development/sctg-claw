@@ -8,3 +8,6 @@
 [submodule "openclaw-coach"]
 	path = openclaw-coach
 	url = git@github.com:sctg-development/openclaw-coach.git
+[submodule "k8s-infra"]
+	path = k8s-infra
+	url = git@github.com:aeltorio/k8s-infra.git

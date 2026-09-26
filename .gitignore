@@ -1,3 +1,5 @@
 .values.yaml
 .DS_Store
 openclaw.json
+.k8s*
+
