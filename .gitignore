@@ -2,4 +2,9 @@
 .DS_Store
 openclaw.json
 .k8s*
+# Scoped ServiceAccount kubeconfig(s) minted for the k8s-ops plugin (contain a
+# live bearer token) -- staging area before pasting into Helm's
+# openclaw.secret.k8sInfraKubeconfig value, never meant to be committed.
+k8s-ops-kubeconfig.json
+*-kubeconfig.json
 

@@ -91,6 +91,22 @@
                         "keypoolLiveSecret": {
                             "type": "string",
                             "description": "KeypoolLive vault bearer token / decryption secret (KEYPOOL_LIVE_SECRET). Required alongside keypoolVaultUrl."
+                        },
+                        "k8sInfraKubeconfig": {
+                            "type": "string",
+                            "description": "Kubeconfig (K8S_INFRA_KUBECONFIG) for the k8s-ops plugin's scoped ServiceAccount -- see k8s-infra/argocd/addons/k8s-ops-rbac/README.md. Written to ~/.kube/config at container start; never baked into the image."
+                        },
+                        "k8sEtcdBackupCryptoken": {
+                            "type": "string",
+                            "description": "Encryption passphrase (K8S_ETCD_BACKUP_CRYPTOKEN) for the k8s-ops plugin's cluster_backup tool's etcd snapshots. Required for cluster_backup to run at all."
+                        },
+                        "k8sInfraGitSshKey": {
+                            "type": "string",
+                            "description": "Read-only SSH deploy key (K8S_INFRA_GIT_SSH_KEY) for git@github.com:aeltorio/k8s-infra.git, distinct from k8s-infra/.k8s-infra-secrets/argocd-deploy-key. Used at container start to clone/pull the GitOps repo into the OpenClaw workspace so the agent can read live Ansible playbooks/inventories and ArgoCD manifests."
+                        },
+                        "k8sArgocdAuthToken": {
+                            "type": "string",
+                            "description": "Token (K8S_ARGOCD_AUTH_TOKEN) for a dedicated ArgoCD local account, scoped via argocd-rbac-cm to get+sync on the cluster-addons project. Used by cluster_status/cluster_diff/cluster_sync to talk to argocd-server directly (not --core mode). See k8s-infra/openclaw-plugin/README.md."
                         }
                     }
                 },

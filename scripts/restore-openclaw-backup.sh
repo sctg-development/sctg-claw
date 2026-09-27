@@ -18,7 +18,7 @@
 #   6. restart the gateway pod so it picks up the restored state
 #
 # Usage:
-#   ./scripts/restore-openclaw-backup.sh <openclaw-backup.tar.gz> <home-backup.tar.gz>
+#   ./scripts/restore-openclaw-backup.sh [--skip-verification] <openclaw-backup.tar.gz> <home-backup.tar.gz>
 #
 # Both paths may be local files (uploaded into the pod automatically) or
 # paths already present inside the pod (e.g. /tmp/foo.tar.gz), for the case
@@ -33,14 +33,36 @@ set -euo pipefail
 NAMESPACE="${NAMESPACE:-claw}"
 LABEL_SELECTOR="${LABEL_SELECTOR:-app.kubernetes.io/instance=sctg-claw}"
 CONTAINER="${CONTAINER:-gateway}"
+SKIP_VERIFICATION=false
 
-if [ "$#" -ne 2 ]; then
-  echo "Usage: $0 <openclaw-backup.tar.gz> <home-backup.tar.gz>" >&2
+usage() {
+  echo "Usage: $0 [--skip-verification] <openclaw-backup.tar.gz> <home-backup.tar.gz>" >&2
   exit 1
+}
+
+POSITIONAL=()
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --skip-verification)
+      SKIP_VERIFICATION=true
+      shift
+      ;;
+    -h|--help)
+      usage
+      ;;
+    *)
+      POSITIONAL+=("$1")
+      shift
+      ;;
+  esac
+done
+
+if [ "${#POSITIONAL[@]}" -ne 2 ]; then
+  usage
 fi
 
-OPENCLAW_BACKUP="$1"
-HOME_BACKUP="$2"
+OPENCLAW_BACKUP="${POSITIONAL[0]}"
+HOME_BACKUP="${POSITIONAL[1]}"
 
 POD="$(kubectl get pod -n "$NAMESPACE" -l "$LABEL_SELECTOR" -o jsonpath='{.items[0].metadata.name}')"
 if [ -z "$POD" ]; then
@@ -73,11 +95,16 @@ REMOTE_OPENCLAW_BACKUP="$(copy_into_pod "$OPENCLAW_BACKUP" "$(basename "$OPENCLA
 REMOTE_HOME_BACKUP="$(copy_into_pod "$HOME_BACKUP" "$(basename "$HOME_BACKUP")")"
 
 echo
-echo "== Verifying openclaw backup archive =="
-kexec openclaw backup verify "$REMOTE_OPENCLAW_BACKUP"
+if [ "$SKIP_VERIFICATION" = "true" ]; then
+  echo "== Skipping openclaw backup archive verification (--skip-verification) =="
+else
+  echo "== Verifying openclaw backup archive =="
+  kexec openclaw backup verify "$REMOTE_OPENCLAW_BACKUP"
+  echo "== Verification complete, archive is valid =="
+fi
 
 TS="$(date +%s)"
-STAGE="/tmp/restore-staging-$TS"
+STAGE="/home/node/restore-staging-$TS"
 
 echo
 echo "== Restoring archive to a fresh staging dir =="

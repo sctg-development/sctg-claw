@@ -104,6 +104,35 @@ openclaw:
     # Once set, `op read op://vault/item/field` and `op run -- <cmd>` work
     # non-interactively inside the container -- no `op signin` needed.
     onePasswordServiceAccountToken: ""
+    # k8s-ops plugin (k8s-infra/openclaw-plugin): kubeconfig for a scoped
+    # ServiceAccount (see k8s-infra/argocd/addons/k8s-ops-rbac/README.md for
+    # how to mint one) -- NOT your personal admin kubeconfig. Written to
+    # ~/.kube/config at container start by scripts/resolve-k8s-infra-secrets.mjs,
+    # never baked into the image.
+    k8sInfraKubeconfig: ""
+    # Passphrase for cluster_backup's encrypted etcd snapshots (AES-256, same
+    # convention as k8s-infra/scripts/backup/headscale-backup.sh's CRYPTOKEN).
+    # cluster_backup refuses to run without this -- an etcd snapshot contains
+    # every Secret in the cluster.
+    k8sEtcdBackupCryptoken: ""
+    # Read-only SSH deploy key for git@github.com:aeltorio/k8s-infra.git,
+    # DISTINCT from k8s-infra/.k8s-infra-secrets/argocd-deploy-key (that one
+    # stays ArgoCD's own in-cluster credential). Lets the pod clone/pull the
+    # actual GitOps repo at container start (scripts/resolve-k8s-infra-secrets.mjs)
+    # into the OpenClaw workspace, so the agent can read the live Ansible
+    # playbooks/inventories and ArgoCD Application manifests -- not just
+    # ArgoCD's already-applied cluster state. Mint a dedicated read-only
+    # deploy key for this (GitHub repo settings -> Deploy keys), do not reuse
+    # a personal key.
+    k8sInfraGitSshKey: ""
+    # Token for a dedicated ArgoCD *local account* (not a Kubernetes
+    # credential), scoped via argocd-rbac-cm to get+sync on the cluster-addons
+    # project only. Used by cluster_status/cluster_diff/cluster_sync to talk
+    # to argocd-server directly instead of --core mode (which would need
+    # near-cluster-admin K8s RBAC to read every resource kind every
+    # Application manages). See k8s-infra/openclaw-plugin/README.md for how
+    # to create this account and mint its token.
+    k8sArgocdAuthToken: ""
   # This map is rendered as /home/node/.openclaw/openclaw.json.
   # Add any supported OpenClaw configuration section here. Use SecretRef objects
   # for sensitive values, for example: { source: env, provider: default, id: TOKEN }.
