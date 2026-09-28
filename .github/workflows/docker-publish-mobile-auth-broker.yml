@@ -35,6 +35,12 @@ jobs:
         uses: actions/checkout@v7
         with:
           submodules: recursive
+          # k8s-infra is a private submodule under a different account
+          # (aeltorio); default GITHUB_TOKEN can't clone it. Not needed by
+          # this workflow's own build, but `submodules: recursive` clones
+          # every submodule in .gitmodules regardless -- see
+          # docker-publish.yml for the full explanation.
+          token: ${{ secrets.K8S_INFRA_PAT || secrets.GITHUB_TOKEN }}
 
       - name: Prepare platform tag
         run: |
@@ -88,6 +94,12 @@ jobs:
         uses: actions/checkout@v7
         with:
           submodules: recursive
+          # k8s-infra is a private submodule under a different account
+          # (aeltorio); default GITHUB_TOKEN can't clone it. Not needed by
+          # this workflow's own build, but `submodules: recursive` clones
+          # every submodule in .gitmodules regardless -- see
+          # docker-publish.yml for the full explanation.
+          token: ${{ secrets.K8S_INFRA_PAT || secrets.GITHUB_TOKEN }}
 
       - name: Download digests
         uses: actions/download-artifact@v4

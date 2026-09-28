@@ -8,17 +8,21 @@ on:
       - openclaw
       - garmin-cli
       - openclaw-coach
+      - k8s-infra
       - .github/workflows/docker-publish.yml
       - scripts/ciron.toml
+      - scripts/resolve-k8s-infra-secrets.mjs
   pull_request:
     branches: [ main ]
     paths:
       - Dockerfile
       - openclaw
       - garmin-cli
-      - openclaw-coach  
+      - openclaw-coach
+      - k8s-infra
       - .github/workflows/docker-publish.yml
       - scripts/ciron.toml
+      - scripts/resolve-k8s-infra-secrets.mjs
 
 env:
   REGISTRY: docker.io
@@ -49,6 +53,12 @@ jobs:
         uses: actions/checkout@v7
         with:
           submodules: recursive
+          # Default GITHUB_TOKEN only has access to this repo; k8s-infra is a
+          # private repo under a different account (aeltorio), so cloning it
+          # as a submodule needs a PAT with read access to it. Falls back to
+          # GITHUB_TOKEN if the secret isn't set (breaks k8s-infra checkout
+          # only, same failure as before this was added).
+          token: ${{ secrets.K8S_INFRA_PAT || secrets.GITHUB_TOKEN }}
 
       - name: Prepare platform tag
         run: |
@@ -77,6 +87,7 @@ jobs:
           build-contexts: |
             garmin-cli=./garmin-cli
             openclaw-coach=./openclaw-coach
+            k8s-infra=./k8s-infra
             sctg-scripts=./scripts
           file: ./Dockerfile
           platforms: ${{ matrix.platform }}
@@ -113,6 +124,12 @@ jobs:
         uses: actions/checkout@v7
         with:
           submodules: recursive
+          # Default GITHUB_TOKEN only has access to this repo; k8s-infra is a
+          # private repo under a different account (aeltorio), so cloning it
+          # as a submodule needs a PAT with read access to it. Falls back to
+          # GITHUB_TOKEN if the secret isn't set (breaks k8s-infra checkout
+          # only, same failure as before this was added).
+          token: ${{ secrets.K8S_INFRA_PAT || secrets.GITHUB_TOKEN }}
 
       - name: Download digests
         uses: actions/download-artifact@v8
