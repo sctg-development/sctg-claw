@@ -44,6 +44,10 @@
         "openclaw": {
             "type": "object",
             "properties": {
+                "gogKeyringPassword": {
+                    "type": "string",
+                    "description": "Password for the gogcli keyring (GOG_KEYRING_PASSWORD). Required for gogcli to access the encrypted keyring."
+                },
                 "existingSecret": {
                     "type": "string"
                 },

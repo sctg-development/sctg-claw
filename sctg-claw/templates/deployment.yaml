@@ -130,6 +130,8 @@ spec:
               value: {{ .Values.openclaw.secret.garminPassword | quote }}
             {{- end }}
             {{- end }}
+            - name: GOG_KEYRING_PASSWORD
+              value: {{ .Values.openclaw.gogKeyringPassword | quote }}
           {{- if include "claw.openclawSecretName" . }}
           envFrom:
             - secretRef:
