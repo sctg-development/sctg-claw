@@ -15,6 +15,10 @@ spec:
       targetPort: mcp-sandbox
       protocol: TCP
       name: mcp-sandbox
+    - port: 43843
+      targetPort: 43843
+      protocol: TCP
+      name: gogcli
   selector:
     app.kubernetes.io/name: {{ include "claw.name" . }}
     app.kubernetes.io/instance: {{ .Release.Name }}
