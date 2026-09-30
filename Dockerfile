@@ -53,7 +53,7 @@
 # only a built dist/index.js from a private source repo, MIT-licensed; see
 # that directory's README), patched for API-key rotation the same as the
 # other 4, and bundled here like any other extension.
-ARG OPENCLAW_EXTENSIONS="cohere,exa,firecrawl,mistral,parallel,poolside,whatsapp,signal,acpx,duckduckgo-plugin"
+ARG OPENCLAW_EXTENSIONS="cohere,exa,firecrawl,mistral,parallel,poolside,whatsapp,signal,acpx"
 ARG OPENCLAW_BUNDLED_PLUGIN_DIR=extensions
 ARG OPENCLAW_DOCKER_BUILD_NODE_OPTIONS="--max-old-space-size=8192"
 ARG OPENCLAW_DOCKER_BUILD_TSDOWN_MAX_OLD_SPACE_MB=""
@@ -529,7 +529,8 @@ ARG WACLI_VERSION=0.16.0
 # installed here, since no v1 tool needs it (see k8s-infra/openclaw-plugin).
 ARG KUBECTL_VERSION=1.31.2
 ARG ARGOCD_VERSION=2.13.2
-ARG KILOCODE_PREVIEW_DATE="2026-09-29T08-38-54Z"
+ARG KILOCODE_PREVIEW_DATE="2026-09-29T20-01-31Z"
+ARG KILOCODE_PREVIEW_VERSION="0.1.0"
 RUN --mount=type=cache,id=openclaw-bookworm-apt-cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,id=openclaw-bookworm-apt-lists,target=/var/lib/apt,sharing=locked \
     apt-get update && \
@@ -544,7 +545,7 @@ RUN --mount=type=cache,id=openclaw-bookworm-apt-cache,target=/var/cache/apt,shar
     tar -xzf /tmp/wacli.tar.gz -O ./wacli > /usr/local/bin/wacli && \
     curl -fsSL "https://dl.k8s.io/release/v${KUBECTL_VERSION}/bin/linux/${TARGETARCH}/kubectl" -o /usr/local/bin/kubectl && \
     curl -fsSL "https://github.com/argoproj/argo-cd/releases/download/v${ARGOCD_VERSION}/argocd-linux-${TARGETARCH}" -o /usr/local/bin/argocd && \
-    curl -fsSL "https://github.com/TEA-ching/kilocode/releases/download/preview%2F${KILOCODE_PREVIEW_DATE}/kilocode-download_linux_${TARGETARCH}_0.1.0" -o /usr/local/bin/kilocode-download && \
+    curl -fsSL "https://github.com/TEA-ching/kilocode/releases/download/preview%2F${KILOCODE_PREVIEW_DATE}/kilocode-download_linux-bookworm_${TARGETARCH}_${KILOCODE_PREVIEW_VERSION}" -o /usr/local/bin/kilocode-download && \
     chmod +x /usr/local/bin/gog /usr/local/bin/goplaces /usr/local/bin/wacli /usr/local/bin/kubectl /usr/local/bin/argocd /usr/local/bin/kilocode-download && \
     rm -f /tmp/gogcli.tar.gz /tmp/goplaces.tar.gz /tmp/wacli.tar.gz && \
     # Install 1Password CLI \
@@ -575,9 +576,9 @@ RUN --mount=type=cache,id=openclaw-bookworm-apt-cache,target=/var/cache/apt,shar
     # Add the tailscale repository \
     curl -fsSL https://pkgs.tailscale.com/stable/debian/bookworm.tailscale-keyring.list | tee /etc/apt/sources.list.d/tailscale.list && \
     # Install Tailscale \
-    apt-get update -y && apt-get install -y tailscale && \  
+    apt-get update -y && apt-get install -y tailscale   
     # Install KiloCode CLI \
-    /usr/local/bin/kilocode-download --cli --out-file /usr/local/bin/kilocode
+RUN /usr/local/bin/kilocode-download --cli --out-file /usr/local/bin/kilocode
 # install MinIO client (mc) for S3-compatible object storage access.
 RUN curl -L https://dl.min.io/aistor/mc/release/linux-$(dpkg --print-architecture)/mc > /usr/local/bin/mc && chmod +x /usr/local/bin/mc
 # Install BusyBox for lightweight Unix utilities (e.g. `sendmail`).  
