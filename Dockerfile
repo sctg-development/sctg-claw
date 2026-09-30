@@ -72,6 +72,10 @@ ARG OPENCLAW_BUN_IMAGE="docker.io/oven/bun:1.4.0@sha256:5ff609364c049b54eb0ff560
 # docker.io/library/node:24-bookworm-slim (or podman) and replace the digests below with the
 # current multi-arch manifest list entries.
 
+# Build custom gocli binary from https://github.com/sctg-development/gogcli.git
+FROM golang:bookworm AS gogcli_builder
+RUN cd / && git clone --branch main https://github.com/sctg-development/gogcli.git && cd /gogcli && make build 
+
 # Cirond is a small fast process manager for running multiple long-running processes in a single container. It is used to run cirond and cironctl in the sctg-claw image.
 FROM ${OPENCLAW_NODE_BOOKWORM_IMAGE} AS ciron_builder
 RUN --mount=type=cache,id=openclaw-bookworm-apt-cache,target=/var/cache/apt,sharing=locked \
@@ -521,7 +525,7 @@ RUN --mount=type=cache,id=openclaw-bookworm-apt-cache,target=/var/cache/apt,shar
 # sctg-claw additions start here (everything above is upstream openclaw/Dockerfile)
 # ---------------------------------------------------------------------------
 
-ARG GOGCLI_VERSION=0.40.0
+# ARG GOGCLI_VERSION=0.40.0
 ARG GOPLACES_VERSION=0.4.11
 ARG WACLI_VERSION=0.16.0
 # kubectl/argocd: used by the k8s-ops plugin (see COPY --from=k8s-infra below)
@@ -537,8 +541,6 @@ RUN --mount=type=cache,id=openclaw-bookworm-apt-cache,target=/var/cache/apt,shar
     DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends tar pandoc librsvg2-bin imagemagick jq ffmpeg gh gnupg vim bzip2 ssh x11vnc xvfb && \
     # OpenClaw's additional system packages \
     case "${TARGETARCH}" in amd64|arm64) ;; *) echo "Unsupported architecture: ${TARGETARCH}" >&2; exit 1 ;; esac && \
-    curl -fsSL "https://github.com/openclaw/gogcli/releases/download/v${GOGCLI_VERSION}/gogcli_${GOGCLI_VERSION}_linux_${TARGETARCH}.tar.gz" -o /tmp/gogcli.tar.gz && \
-    tar -xzf /tmp/gogcli.tar.gz -O ./gog > /usr/local/bin/gog && \
     curl -fsSL "https://github.com/openclaw/goplaces/releases/download/v${GOPLACES_VERSION}/goplaces_${GOPLACES_VERSION}_linux_${TARGETARCH}.tar.gz" -o /tmp/goplaces.tar.gz && \
     tar -xzf /tmp/goplaces.tar.gz -O goplaces > /usr/local/bin/goplaces && \
     curl -fsSL "https://github.com/openclaw/wacli/releases/download/v${WACLI_VERSION}/wacli_${WACLI_VERSION}_linux_${TARGETARCH}.tar.gz" -o /tmp/wacli.tar.gz && \
@@ -546,7 +548,7 @@ RUN --mount=type=cache,id=openclaw-bookworm-apt-cache,target=/var/cache/apt,shar
     curl -fsSL "https://dl.k8s.io/release/v${KUBECTL_VERSION}/bin/linux/${TARGETARCH}/kubectl" -o /usr/local/bin/kubectl && \
     curl -fsSL "https://github.com/argoproj/argo-cd/releases/download/v${ARGOCD_VERSION}/argocd-linux-${TARGETARCH}" -o /usr/local/bin/argocd && \
     curl -fsSL "https://github.com/TEA-ching/kilocode/releases/download/preview%2F${KILOCODE_PREVIEW_DATE}/kilocode-download_linux-bookworm_${TARGETARCH}_${KILOCODE_PREVIEW_VERSION}" -o /usr/local/bin/kilocode-download && \
-    chmod +x /usr/local/bin/gog /usr/local/bin/goplaces /usr/local/bin/wacli /usr/local/bin/kubectl /usr/local/bin/argocd /usr/local/bin/kilocode-download && \
+    chmod +x /usr/local/bin/goplaces /usr/local/bin/wacli /usr/local/bin/kubectl /usr/local/bin/argocd /usr/local/bin/kilocode-download && \
     rm -f /tmp/gogcli.tar.gz /tmp/goplaces.tar.gz /tmp/wacli.tar.gz && \
     # Install 1Password CLI \
     curl -sS https://downloads.1password.com/linux/keys/1password.asc | \
@@ -598,6 +600,9 @@ COPY --from=ciron_builder /ciron/target/release/cironctl /usr/sbin/cironctl
 # A sibling of openclaw/, so it comes from its own named build context (see
 # header comment above).
 COPY --from=sctg-scripts ciron.toml /etc/ciron/ciron.toml
+# Install gogcli
+COPY --from=gogcli_builder /gogcli/bin/gog /usr/local/bin/gog
+RUN chmod +x /usr/local/bin/gog
 
 # KeypoolLive vault resolver (see scripts/resolve-keypool-vault.mjs): populates
 # MISTRAL_API_KEYS/COHERE_API_KEYS/POOLSIDE_API_KEYS/FIRECRAWL_API_KEYS/EXA_API_KEYS
