@@ -59,5 +59,5 @@ after = ["tailscaled"]
 [program.gogcli]
 command = 'bash -c "/usr/local/bin/gog auth manage --listen-addr=0.0.0.0:43843 --base-path=/gog"'
 autostart = true
-restart = "on-failure"
+restart = "always"
 log_forward = true
