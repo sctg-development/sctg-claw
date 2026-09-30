@@ -27,6 +27,8 @@ command = "fluxbox -display :99"
 autostart = true
 restart = "always"
 log_forward = true
+wants = ["xvfb"]
+after = ["xvfb"]
 
 # x11vnc needs shell expansion for $VNC_PASSWORD, so it's wrapped in `sh -c`
 # (cirond parses `command` with shell-words, not a shell, so bare "$VAR"
@@ -36,6 +38,8 @@ command = "sh -c 'x11vnc -display :99 -forever -passwd \"$VNC_PASSWORD\" -rfbpor
 autostart = true
 restart = "always"
 log_forward = true
+wants = ["xvfb"]
+after = ["xvfb"]
 
 # tailscaled for direct gateway access
 [program.tailscaled]
