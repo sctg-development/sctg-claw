@@ -538,7 +538,7 @@ ARG KILOCODE_PREVIEW_VERSION="0.1.0"
 RUN --mount=type=cache,id=openclaw-bookworm-apt-cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,id=openclaw-bookworm-apt-lists,target=/var/lib/apt,sharing=locked \
     apt-get update && \
-    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends tar pandoc librsvg2-bin imagemagick jq ffmpeg gh gnupg vim bzip2 ssh x11vnc xvfb && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends tar pandoc librsvg2-bin imagemagick jq ffmpeg gh gnupg vim bzip2 ssh x11vnc xvfb sed && \
     # OpenClaw's additional system packages \
     case "${TARGETARCH}" in amd64|arm64) ;; *) echo "Unsupported architecture: ${TARGETARCH}" >&2; exit 1 ;; esac && \
     curl -fsSL "https://github.com/openclaw/goplaces/releases/download/v${GOPLACES_VERSION}/goplaces_${GOPLACES_VERSION}_linux_${TARGETARCH}.tar.gz" -o /tmp/goplaces.tar.gz && \
@@ -603,6 +603,20 @@ COPY --from=sctg-scripts ciron.toml /etc/ciron/ciron.toml
 # Install gogcli
 COPY --from=gogcli_builder /gogcli/bin/gog /usr/local/bin/gog
 RUN chmod +x /usr/local/bin/gog
+# Install Mistral Vibe CLI \
+RUN curl -LsSf https://mistral.ai/vibe/install.sh | bash ; \
+    mkdir -p /usr/local/share/uv && \
+    mv /root/.local/share/uv/* /usr/local/share/uv/ && \
+    # Identify the uv's installed Python version (e.g. cpython-3.12.13-linux-x86_64-gnu) and link it to /usr/local/share/uv/tools/mistral-vibe/bin/python so vibe can find it \
+    uv_python_dir="$(find /usr/local/share/uv -maxdepth 2 -type d -name 'cpython-*' | head -n 1)" && \
+    uv_python_bin="$(find "$uv_python_dir/bin" -maxdepth 1 -type f -executable -name 'python3.*[0-9]' | head -n 1)" && \
+    ln -svf $uv_python_bin /usr/local/share/uv/tools/mistral-vibe/bin/python && \
+    sed -i '1s|#!/root/.local/share/uv/tools/mistral-vibe/bin/python|#!/usr/local/share/uv/tools/mistral-vibe/bin/python|' /usr/local/share/uv/tools/mistral-vibe/bin/vibe && \
+    sed -i '1s|#!/root/.local/share/uv/tools/mistral-vibe/bin/python|#!/usr/local/share/uv/tools/mistral-vibe/bin/python|' /usr/local/share/uv/tools/mistral-vibe/bin/vibe-acp && \
+    sed -i '1s|#!/root/.local/share/uv/tools/mistral-vibe/bin/python|#!/usr/local/share/uv/tools/mistral-vibe/bin/python|' /usr/local/share/uv/tools/mistral-vibe/bin/vibe-app-server && \
+    ln -svf /usr/local/share/uv/tools/mistral-vibe/bin/vibe /usr/local/bin/vibe && \
+    ln -svf /usr/local/share/uv/tools/mistral-vibe/bin/vibe-acp /usr/local/bin/vibe-acp && \
+    ln -svf /usr/local/share/uv/tools/mistral-vibe/bin/vibe-app-server /usr/local/bin/vibe-app-server
 
 # KeypoolLive vault resolver (see scripts/resolve-keypool-vault.mjs): populates
 # MISTRAL_API_KEYS/COHERE_API_KEYS/POOLSIDE_API_KEYS/FIRECRAWL_API_KEYS/EXA_API_KEYS
