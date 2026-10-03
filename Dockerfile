@@ -604,7 +604,16 @@ COPY --from=sctg-scripts ciron.toml /etc/ciron/ciron.toml
 COPY --from=gogcli_builder /gogcli/bin/gog /usr/local/bin/gog
 RUN chmod +x /usr/local/bin/gog
 # Install Mistral Vibe CLI \
-RUN curl -LsSf https://mistral.ai/vibe/install.sh | bash ; \
+# `miniaudio` (a mistral-vibe dependency) ships no prebuilt wheel on linux/aarch64,
+# so uv compiles it from source, which needs a C++ toolchain that bookworm-slim
+# lacks (fails with "No such file or directory: 'c++'" on arm64 only). Install it
+# for the duration of this step and purge it afterwards to keep the image slim.
+RUN --mount=type=cache,id=openclaw-bookworm-apt-cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,id=openclaw-bookworm-apt-lists,target=/var/lib/apt,sharing=locked \
+    apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends build-essential libffi-dev && \
+    curl -LsSf https://mistral.ai/vibe/install.sh | bash && \
+    DEBIAN_FRONTEND=noninteractive apt-get purge -y --auto-remove build-essential libffi-dev && \
     mkdir -p /usr/local/share/uv && \
     mv /root/.local/share/uv/* /usr/local/share/uv/ && \
     # Identify the uv's installed Python version (e.g. cpython-3.12.13-linux-x86_64-gnu) and link it to /usr/local/share/uv/tools/mistral-vibe/bin/python so vibe can find it \
