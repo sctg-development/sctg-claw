@@ -612,7 +612,9 @@ RUN --mount=type=cache,id=openclaw-bookworm-apt-cache,target=/var/cache/apt,shar
     --mount=type=cache,id=openclaw-bookworm-apt-lists,target=/var/lib/apt,sharing=locked \
     apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends build-essential libffi-dev && \
-    curl -LsSf https://mistral.ai/vibe/install.sh | bash && \
+    # `;` not `&&`: the installer exits non-zero when /root/.local/bin is not on PATH
+    # even though the install succeeded; the steps below verify the result anyway. \
+    curl -LsSf https://mistral.ai/vibe/install.sh | bash ; \
     DEBIAN_FRONTEND=noninteractive apt-get purge -y --auto-remove build-essential libffi-dev && \
     mkdir -p /usr/local/share/uv && \
     mv /root/.local/share/uv/* /usr/local/share/uv/ && \
