@@ -580,7 +580,8 @@ RUN --mount=type=cache,id=openclaw-bookworm-apt-cache,target=/var/cache/apt,shar
     # Install Tailscale \
     apt-get update -y && apt-get install -y tailscale   
     # Install KiloCode CLI \
-RUN /usr/local/bin/kilocode-download --cli --out-file /usr/local/bin/kilocode
+RUN /usr/local/bin/kilocode-download --cli --out-file /usr/local/bin/kilocode && \
+    ln -svf /usr/local/bin/kilocode /usr/local/bin/kilo
 # install MinIO client (mc) for S3-compatible object storage access.
 RUN curl -L https://dl.min.io/aistor/mc/release/linux-$(dpkg --print-architecture)/mc > /usr/local/bin/mc && chmod +x /usr/local/bin/mc
 # Install BusyBox for lightweight Unix utilities (e.g. `sendmail`).  
