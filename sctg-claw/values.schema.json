@@ -96,6 +96,14 @@
                             "type": "string",
                             "description": "KeypoolLive vault bearer token / decryption secret (KEYPOOL_LIVE_SECRET). Required alongside keypoolVaultUrl."
                         },
+                        "keypoolUsageDbDir": {
+                            "type": "string",
+                            "description": "Directory path (KEYPOOL_USAGE_DB_DIR) for the keypool usage database. Required alongside keypoolVaultUrl and keypoolLiveSecret."
+                        },
+                        "keypoolLiveRemoteStorageUrl": {
+                            "type": "string",
+                            "description": "Remote storage URL (KEYPOOL_LIVE_REMOTE_STORAGE_URL) for the keypool usage database. Required alongside keypoolVaultUrl, keypoolLiveSecret, and keypoolUsageDbDir."
+                        } ,
                         "k8sInfraKubeconfig": {
                             "type": "string",
                             "description": "Kubeconfig (K8S_INFRA_KUBECONFIG) for the k8s-ops plugin's scoped ServiceAccount -- see k8s-infra/argocd/addons/k8s-ops-rbac/README.md. Written to ~/.kube/config at container start; never baked into the image."

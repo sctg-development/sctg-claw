@@ -99,6 +99,8 @@ openclaw:
     # vault doesn't cover. See scripts/resolve-keypool-vault.mjs.
     keypoolVaultUrl: ""
     keypoolLiveSecret: ""
+    keypoolUsageDbDir: ""
+    keypoolLiveRemoteStorageUrl: ""
     # 1Password Service Account token for the `op` CLI installed by the Dockerfile.
     # Create one at https://my.1password.com/service-accounts (or your Business
     # account) and grant it read access to only the vaults this gateway needs.
