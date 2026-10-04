@@ -89,6 +89,7 @@ jobs:
             garmin-cli=./garmin-cli
             openclaw-coach=./openclaw-coach
             k8s-infra=./k8s-infra
+            mistral-vibe=./mistral-vibe
             sctg-scripts=./scripts
           file: ./Dockerfile
           platforms: ${{ matrix.platform }}

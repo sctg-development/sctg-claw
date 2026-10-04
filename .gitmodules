@@ -11,3 +11,7 @@
 [submodule "k8s-infra"]
 	path = k8s-infra
 	url = git@github.com:aeltorio/k8s-infra.git
+[submodule "mistral-vibe"]
+	path = mistral-vibe
+	url = git@github.com:sctg-development/mistral-vibe.git
+	branch = multi

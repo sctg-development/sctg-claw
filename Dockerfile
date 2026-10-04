@@ -20,14 +20,15 @@
 #   ./docker-build.sh                     # local build
 #   ./docker-build.sh --push              # multi-arch buildx build + push
 # ...or invoke docker directly with the explicit context, plus the extra
-# named build contexts for the `garmin-cli`, `openclaw-coach`, and
-# `k8s-infra` submodules (used by the `gc-build` stage and the coach/k8s-ops
-# plugin build steps) and this repo's own `scripts/` directory — all
+# named build contexts for the `garmin-cli`, `openclaw-coach`, `k8s-infra`, and
+# `mistral-vibe` submodules (used by the `gc-build` and `vibe-build` stages and
+# the coach/k8s-ops plugin build steps) and this repo's own `scripts/` directory — all
 # siblings of `openclaw/`, not inside it:
 #   docker build -f Dockerfile -t sctg/claw:latest \
 #     --build-context garmin-cli=./garmin-cli \
 #     --build-context openclaw-coach=./openclaw-coach \
 #     --build-context k8s-infra=./k8s-infra \
+#     --build-context mistral-vibe=./mistral-vibe \
 #     --build-context sctg-scripts=./scripts ./openclaw
 #
 # ---------------------------------------------------------------------------
@@ -306,6 +307,41 @@ WORKDIR /src/garmin-cli
 RUN uv python install 3.13 && \
     make setup && \
     make build
+
+# ── Mistral Vibe: published release + our fork's `multi` branch ─────────────
+# sctg-claw addition. The `mistral-vibe` submodule (sctg-development/mistral-vibe,
+# branch `multi`) adds multi-account API key failover (vibe/core/llm/key_pool.py:
+# MISTRAL_API_KEYS, comma separated, rotates on 429/401/quota). Vibe's own wheel is
+# built with maturin from Rust sources (TUI + native harness), which is not worth
+# reproducing on amd64 and arm64 here, so: install the exact release the fork is
+# based on (version read from the fork's pyproject.toml) and overlay the fork's
+# Python files on top. The fork must stay a pure-Python delta of that release.
+#
+# Source comes from the named build context `mistral-vibe` (see header comment).
+# Everything compiled (miniaudio has no linux/aarch64 wheel) is built here, so the
+# runtime image needs no compiler. uv's dirs are set to their final runtime paths
+# so the venv and the entry points' shebangs stay valid after the COPY.
+FROM ${OPENCLAW_NODE_BOOKWORM_IMAGE} AS vibe-build
+ENV UV_TOOL_DIR=/usr/local/share/uv/tools \
+    UV_TOOL_BIN_DIR=/usr/local/bin \
+    UV_PYTHON_INSTALL_DIR=/usr/local/share/uv/python \
+    UV_COMPILE_BYTECODE=1
+RUN --mount=type=cache,id=openclaw-bookworm-apt-cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,id=openclaw-bookworm-apt-lists,target=/var/lib/apt,sharing=locked \
+    apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+      ca-certificates curl build-essential libffi-dev && \
+    curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR=/usr/local/bin sh
+COPY --from=mistral-vibe / /src/mistral-vibe
+RUN set -eu; \
+    version="$(sed -n 's/^version = "\(.*\)"$/\1/p' /src/mistral-vibe/pyproject.toml | head -n 1)"; \
+    test -n "$version"; \
+    uv tool install --python 3.12 "mistral-vibe==${version}"; \
+    site="$(/usr/local/share/uv/tools/mistral-vibe/bin/python -c 'import os, vibe; print(os.path.dirname(vibe.__file__))')"; \
+    (cd /src/mistral-vibe/vibe && find . -name '*.py' -not -path './cli-rust/*' -exec cp --parents {} "$site/" \;); \
+    /usr/local/share/uv/tools/mistral-vibe/bin/python -m compileall -q "$site"; \
+    /usr/local/share/uv/tools/mistral-vibe/bin/python -c 'import vibe.core.llm.key_pool'; \
+    /usr/local/bin/vibe --version
 
 # ── Runtime base image ──────────────────────────────────────────
 FROM ${OPENCLAW_NODE_BOOKWORM_SLIM_IMAGE} AS base-runtime
@@ -604,31 +640,15 @@ COPY --from=sctg-scripts ciron.toml /etc/ciron/ciron.toml
 # Install gogcli
 COPY --from=gogcli_builder /gogcli/bin/gog /usr/local/bin/gog
 RUN chmod +x /usr/local/bin/gog
-# Install Mistral Vibe CLI \
-# `miniaudio` (a mistral-vibe dependency) ships no prebuilt wheel on linux/aarch64,
-# so uv compiles it from source, which needs a C++ toolchain that bookworm-slim
-# lacks (fails with "No such file or directory: 'c++'" on arm64 only). Install it
-# for the duration of this step and purge it afterwards to keep the image slim.
-RUN --mount=type=cache,id=openclaw-bookworm-apt-cache,target=/var/cache/apt,sharing=locked \
-    --mount=type=cache,id=openclaw-bookworm-apt-lists,target=/var/lib/apt,sharing=locked \
-    apt-get update && \
-    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends build-essential libffi-dev && \
-    # `;` not `&&`: the installer exits non-zero when /root/.local/bin is not on PATH
-    # even though the install succeeded; the steps below verify the result anyway. \
-    curl -LsSf https://mistral.ai/vibe/install.sh | bash ; \
-    DEBIAN_FRONTEND=noninteractive apt-get purge -y --auto-remove build-essential libffi-dev && \
-    mkdir -p /usr/local/share/uv && \
-    mv /root/.local/share/uv/* /usr/local/share/uv/ && \
-    # Identify the uv's installed Python version (e.g. cpython-3.12.13-linux-x86_64-gnu) and link it to /usr/local/share/uv/tools/mistral-vibe/bin/python so vibe can find it \
-    uv_python_dir="$(find /usr/local/share/uv -maxdepth 2 -type d -name 'cpython-*' | head -n 1)" && \
-    uv_python_bin="$(find "$uv_python_dir/bin" -maxdepth 1 -type f -executable -name 'python3.*[0-9]' | head -n 1)" && \
-    ln -svf $uv_python_bin /usr/local/share/uv/tools/mistral-vibe/bin/python && \
-    sed -i '1s|#!/root/.local/share/uv/tools/mistral-vibe/bin/python|#!/usr/local/share/uv/tools/mistral-vibe/bin/python|' /usr/local/share/uv/tools/mistral-vibe/bin/vibe && \
-    sed -i '1s|#!/root/.local/share/uv/tools/mistral-vibe/bin/python|#!/usr/local/share/uv/tools/mistral-vibe/bin/python|' /usr/local/share/uv/tools/mistral-vibe/bin/vibe-acp && \
-    sed -i '1s|#!/root/.local/share/uv/tools/mistral-vibe/bin/python|#!/usr/local/share/uv/tools/mistral-vibe/bin/python|' /usr/local/share/uv/tools/mistral-vibe/bin/vibe-app-server && \
-    ln -svf /usr/local/share/uv/tools/mistral-vibe/bin/vibe /usr/local/bin/vibe && \
-    ln -svf /usr/local/share/uv/tools/mistral-vibe/bin/vibe-acp /usr/local/bin/vibe-acp && \
-    ln -svf /usr/local/share/uv/tools/mistral-vibe/bin/vibe-app-server /usr/local/bin/vibe-app-server
+# Mistral Vibe CLI (vibe, vibe-acp, vibe-app-server), from the vibe-build stage
+# above: the published release plus our `multi` fork's Python files (multi-account
+# key pool). The uv tool dir was created at its final path there, so the entry
+# points' shebangs are already correct and no fix-up is needed here.
+COPY --from=vibe-build /usr/local/share/uv /usr/local/share/uv
+RUN ln -sf /usr/local/share/uv/tools/mistral-vibe/bin/vibe /usr/local/bin/vibe && \
+    ln -sf /usr/local/share/uv/tools/mistral-vibe/bin/vibe-acp /usr/local/bin/vibe-acp && \
+    ln -sf /usr/local/share/uv/tools/mistral-vibe/bin/vibe-app-server /usr/local/bin/vibe-app-server && \
+    vibe --version
 
 # KeypoolLive vault resolver (see scripts/resolve-keypool-vault.mjs): populates
 # MISTRAL_API_KEYS/COHERE_API_KEYS/POOLSIDE_API_KEYS/FIRECRAWL_API_KEYS/EXA_API_KEYS

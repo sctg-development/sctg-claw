@@ -75,6 +75,10 @@ openclaw:
     # without going through the reverse proxy.
     gatewayPassword: ""
     # Values may contain one key or comma-separated key pools.
+    # mistralApiKeys also feeds Mistral Vibe (vibe / vibe-acp): the image ships
+    # our `multi` fork, which fails over between these accounts on 429/401/quota
+    # and remembers cooldowns in ~/.vibe/key_pool_state.json. Use keys issued by
+    # Vibe's web sign-in if you want the free vibe plan models.
     mistralApiKeys: ""
     cohereApiKeys: ""
     poolsideApiKeys: ""
