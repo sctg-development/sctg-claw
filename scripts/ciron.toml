@@ -57,7 +57,7 @@ wants = ["tailscaled"]
 after = ["tailscaled"]
 
 [program.gogcli]
-command = 'bash -c "/usr/local/bin/gog auth manage --listen-addr=0.0.0.0:43843 --base-path=/gog"'
+command = 'bash -c "/usr/local/bin/gog auth manage --listen-addr=0.0.0.0:43843 --base-path=/gog --force-consent"'
 autostart = true
 restart = "always"
 log_forward = true
