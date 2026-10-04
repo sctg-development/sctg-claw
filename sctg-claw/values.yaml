@@ -91,6 +91,13 @@ openclaw:
     # compatible cloud instead. Already supported upstream (OPENAI_BASE_URL),
     # no fork changes needed. Leave empty to use the real OpenAI API.
     openaiBaseUrl: ""
+    # Long-lived Claude Code OAuth token (CLAUDE_CODE_OAUTH_TOKEN) for the
+    # `claude-cli` agent runtime configured in openclaw.config.agents below.
+    # Mint it once with `claude setup-token` (uses your Claude subscription),
+    # so a fresh cluster needs no interactive `claude login` in the pod.
+    # Leave empty to log in manually (`kubectl exec -it ... -- claude`), in
+    # which case the credentials live on the PVC under ~/.claude.
+    claudeCodeOauthToken: ""
     # KeypoolLive vault (git@github.com:sctg-development/ai-proxy-cloudflare.git):
     # when both are set, the container resolves mistralApiKeys/cohereApiKeys/
     # poolsideApiKeys/firecrawlApiKeys/exaApiKeys above from this encrypted
@@ -153,6 +160,27 @@ openclaw:
           id: OPENCLAW_GATEWAY_TOKEN
       controlUi:
         enabled: true
+    # Claude through the local Claude Code CLI (`claude-cli` runtime, baked into
+    # the image). Auth comes from openclaw.secret.claudeCodeOauthToken or a
+    # manual `claude login`. Like the rest of this map, it is only seeded into
+    # ~/.openclaw/openclaw.json on first boot; existing PVCs keep their file.
+    agents:
+      entries:
+        main:
+          models:
+            anthropic/claude-opus-5:
+              agentRuntime:
+                id: claude-cli
+            anthropic/claude-sonnet-5-5:
+              agentRuntime:
+                id: claude-cli
+            anthropic/claude-haiku-4-5:
+              agentRuntime:
+                id: claude-cli
+          model:
+            primary: anthropic/claude-sonnet-5-5
+            fallbacks:
+              - anthropic/claude-haiku-4-5
   # VNC server for browser automation debugging (x11vnc).
   # macOS Finder/Screen Sharing requires a password; -nopw causes the client to
   # disconnect during ClientInit. Set a VNC password here (max 8 chars for RFB

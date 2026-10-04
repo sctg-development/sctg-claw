@@ -81,6 +81,10 @@
                             "type": "string",
                             "description": "Overrides the default https://api.openai.com/v1 endpoint (OPENAI_BASE_URL) for the openai provider, e.g. to route through a private/self-hosted OpenAI-API-compatible cloud. Already supported upstream; leave empty to use the real OpenAI API."
                         },
+                        "claudeCodeOauthToken": {
+                            "type": "string",
+                            "description": "Claude Code OAuth token (CLAUDE_CODE_OAUTH_TOKEN, from `claude setup-token`) used by the claude-cli agent runtime. Leave empty to log in manually inside the pod."
+                        },
                         "ghToken": { "type": "string" },
                         "garminEmail": { "type": "string" },
                         "garminPassword": { "type": "string" },
