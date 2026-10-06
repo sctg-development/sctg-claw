@@ -77,6 +77,7 @@
                         "elevenlabsApiKeys": { "type": "string" },
                         "openrouterApiKeys": { "type": "string" }, 
                         "openaiApiKeys": { "type": "string" },
+                        "vibeApiKeys": { "type": "string" },
                         "openaiBaseUrl": {
                             "type": "string",
                             "description": "Overrides the default https://api.openai.com/v1 endpoint (OPENAI_BASE_URL) for the openai provider, e.g. to route through a private/self-hosted OpenAI-API-compatible cloud. Already supported upstream; leave empty to use the real OpenAI API."

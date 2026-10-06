@@ -80,6 +80,8 @@ openclaw:
     # and remembers cooldowns in ~/.vibe/key_pool_state.json. Use keys issued by
     # Vibe's web sign-in if you want the free vibe plan models.
     mistralApiKeys: ""
+    # Vibe API keys are distinct from the Mistral API keys above, but the Vibe runtime in the image
+    vibeApiKeys: ""
     cohereApiKeys: ""
     poolsideApiKeys: ""
     exaApiKeys: ""
