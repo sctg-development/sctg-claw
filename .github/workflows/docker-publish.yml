@@ -9,6 +9,7 @@ on:
       - openclaw
       - garmin-cli
       - openclaw-coach
+      - mistral-vibe
       - k8s-infra
       - .github/workflows/docker-publish.yml
       - scripts/ciron.toml
@@ -20,6 +21,7 @@ on:
       - openclaw
       - garmin-cli
       - openclaw-coach
+      - mistral-vibe
       - k8s-infra
       - .github/workflows/docker-publish.yml
       - scripts/ciron.toml
