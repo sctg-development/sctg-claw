@@ -5,6 +5,12 @@ metadata:
   labels:
     {{- include "claw.labels" . | nindent 4 }}
 {{- $config := deepCopy .Values.openclaw.config }}
+{{- /* auth.token (SecretRef par défaut) n'a de sens qu'en mode "token" : le retirer pour trusted-proxy & co.
+       (un `token: null` dans les values d'un chart parent ne peut pas supprimer ce défaut d'un sous-chart) */}}
+{{- $gwAuth := dig "gateway" "auth" (dict) $config }}
+{{- if ne (default "token" (get $gwAuth "mode")) "token" }}
+{{- $_ := unset $gwAuth "token" }}
+{{- end }}
 {{- $cloudflaredConfig := .Values.cloudflared.config | fromYaml }}
 {{- $ingress := get $cloudflaredConfig "ingress" }}
 {{- if and .Values.cloudflared.enabled (kindIs "slice" $ingress) (gt (len $ingress) 0) }}
