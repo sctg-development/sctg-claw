@@ -18,7 +18,7 @@ OpenClaw Gateway  (gateway.auth.mode: trusted-proxy)
 ```
 
 - **Cloudflare Tunnel** terminates the public hostname and forwards to oauth2-proxy inside the cluster — no inbound ports are opened on the cluster itself.
-- **oauth2-proxy** gates access with GitHub login, restricted to an explicit `users.txt` allow-list (currently 2 accounts). It forwards the verified identity to the gateway via the `X-Forwarded-Email` header (`pass_user_headers: true`).
+- **oauth2-proxy** gates access with GitHub login, restricted to an explicit `users.txt` allow-list (currently 5 accounts). It forwards the verified identity to the gateway via the `X-Forwarded-Email` header (`pass_user_headers: true`).
 - **OpenClaw Gateway** runs with `gateway.auth.mode: trusted-proxy` and trusts that header (scoped to `gateway.auth.trustedProxy.allowUsers`) instead of a shared token. New Control UI/browser devices from an allow-listed identity are auto-approved with a capped, non-admin scope set (`gateway.auth.trustedProxy.deviceAutoApprove`) — the whole point being to avoid having to `kubectl exec` into the pod and run `openclaw devices approve <id>` for every new browser session.
 
 ## Repository layout
