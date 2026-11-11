@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { buildGogArgs, explainGogFailure, normalizeAddresses, validateMail } from "./mail.ts";
 
-const config = { defaultAccount: "gestion.ai@parapente.eu.org", maxRecipients: 3 };
+const config = { defaultAccount: "sender@example.org", maxRecipients: 3 };
 const ok = { to: ["a@example.org"], subject: "Hi", bodyText: "x" };
 
 test("normalizeAddresses tolerates the comma+space form that breaks the shell", () => {
@@ -29,7 +29,7 @@ test("gog args: send-only, no-input, comma-joined recipients, bodies as files", 
   const v = validateMail({ to: "a@x.org, b@y.org", cc: ["c@x.org"], subject: "S", bodyHtml: "<p>x</p>" }, config);
   assert.ok(v.ok);
   const args = buildGogArgs(v.mail, { htmlFile: "/tmp/b.html" });
-  assert.deepEqual(args.slice(0, 5), ["--account", "gestion.ai@parapente.eu.org", "--enable-commands-exact", "gmail.send", "--no-input"]);
+  assert.deepEqual(args.slice(0, 5), ["--account", "sender@example.org", "--enable-commands-exact", "gmail.send", "--no-input"]);
   assert.equal(args[args.indexOf("--to") + 1], "a@x.org,b@y.org");
   assert.equal(args[args.indexOf("--cc") + 1], "c@x.org");
   assert.equal(args[args.indexOf("--body-html-file") + 1], "/tmp/b.html");

@@ -174,9 +174,9 @@ openclaw:
         sctg-mail:
           enabled: true
           config:
-            defaultAccount: gestion.ai@parapente.eu.org
-            allowedAccounts:
-              - gestion.ai@parapente.eu.org
+            # Set these in your own values (a gog-authorized sender), not in this public chart:
+            # defaultAccount: sender@example.org
+            # allowedAccounts: [sender@example.org]
             maxRecipients: 20
     # Claude through the local Claude Code CLI (`claude-cli` runtime, baked into
     # the image). Auth comes from openclaw.secret.claudeCodeOauthToken or a
