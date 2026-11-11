@@ -676,6 +676,9 @@ COPY --from=sctg-scripts --chown=node:node resolve-keypool-vault.mjs ./scripts/r
 # sets the failover order between the accounts.
 COPY --from=sctg-scripts --chown=node:node provision-claude-accounts.mjs ./scripts/provision-claude-accounts.mjs
 
+# Periodic vault refresh run by cirond (see scripts/keypool-refresh.mjs and scripts/ciron.toml).
+COPY --from=sctg-scripts --chown=node:node keypool-refresh.mjs ./scripts/keypool-refresh.mjs
+
 # OpenRouter free-model populator (see scripts/populate-openrouter-free-models.mjs):
 # independent of the openclaw package, it queries OpenRouter's live catalog
 # with OPENROUTER_API_KEYS/OPENROUTER_API_KEY and writes every ":free" model

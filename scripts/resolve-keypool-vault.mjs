@@ -49,11 +49,11 @@ export const CLAUDE_TOKEN_OWNER = /^CLAUDE_CODE_OAUTH_TOKEN_[A-Z0-9_]+$/;
 // Best plan first, so rotation burns free keys last when mixed.
 const TYPE_RANK = { unlimited: 0, premium: 1, paid: 2, free: 3 };
 
-function shellSingleQuote(value) {
+export function shellSingleQuote(value) {
   return `'${value.replaceAll("'", "'\\''")}'`;
 }
 
-async function fetchEncryptedVault(url, bearerToken) {
+export async function fetchEncryptedVault(url, bearerToken) {
   const response = await fetch(url, {
     signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     headers: { Authorization: `Bearer ${bearerToken}` },
@@ -107,10 +107,12 @@ function usableKeys(entries, nowMs) {
     .map(({ entry }) => entry.key.trim());
 }
 
-// Pure: decrypted vault -> { lines, summary, warnings }. `summary` holds only
-// variable names and counts, safe to log.
+// Pure: decrypted vault -> { lines, vars, summary, warnings }. `vars` is the same
+// data as `lines` as { ENV_NAME: value }. `summary` holds only variable names and
+// counts, safe to log.
 export function buildExports(config, nowMs = Date.now()) {
   const lines = [];
+  const vars = {};
   const summary = [];
   const warnings = [];
 
@@ -119,7 +121,8 @@ export function buildExports(config, nowMs = Date.now()) {
     if (keys.length === 0) {
       continue;
     }
-    lines.push(`export ${target.env}=${shellSingleQuote(keys.join(","))}`);
+    vars[target.env] = keys.join(",");
+    lines.push(`export ${target.env}=${shellSingleQuote(vars[target.env])}`);
     summary.push(`${target.env}(${keys.length})`);
   }
 
@@ -139,11 +142,12 @@ export function buildExports(config, nowMs = Date.now()) {
       continue;
     }
     seen.add(owner);
-    lines.push(`export ${owner}=${shellSingleQuote(entry.key.trim())}`);
+    vars[owner] = entry.key.trim();
+    lines.push(`export ${owner}=${shellSingleQuote(vars[owner])}`);
     summary.push(owner);
   }
 
-  return { lines, summary, warnings };
+  return { lines, vars, summary, warnings };
 }
 
 async function main() {
