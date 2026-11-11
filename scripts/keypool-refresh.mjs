@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 // Long-running cirond program: re-reads the KeypoolLive vault periodically and,
 // when the credentials really changed, re-provisions Claude accounts and
-// restarts the gateway so it picks up the new environment.
+// stops and starts the gateway so it picks up the new environment.
 //
 // Honest scope: OpenClaw reads provider keys from its process environment at
-// startup, so "refresh" means a gateway restart, not an in-place swap. To keep
+// startup, so "refresh" means a gateway stop/start, not an in-place swap. To keep
 // that rare it only happens when a value differs from what the gateway runs
 // with, and at most once per KEYPOOL_MIN_RESTART_SECONDS.
 //
@@ -78,15 +78,27 @@ async function cycle(state, config) {
   }
   // Only vault-derived variables go to disk, never the whole process environment.
   writeEnvFileAtomically(config.envFile, renderEnvFile({ ...state.written, ...desired }));
-  // Claude accounts live in OpenClaw auth profiles, not env: re-provision with the new values.
+  // Claude accounts live in OpenClaw auth profiles, not env. `openclaw models auth` refuses to write
+  // while the gateway owns the state ("requires exclusive offline state ownership"), so the gateway
+  // is stopped first, the accounts are re-provisioned offline, then the gateway is started again.
+  const ctl = (action) =>
+    spawnSync("cironctl", ["-t", config.socket, action, config.program], { encoding: "utf8", timeout: 60_000 });
+  const failure = (result) => (result.stderr || result.error?.message || "").trim().split("\n")[0];
+  const stop = ctl("stop");
+  if (stop.status !== 0) {
+    // Maybe it is already stopped (a previous cycle failed to start it): bring it back rather than leave it down.
+    ctl("start");
+    log(`could not stop ${config.program} (${failure(stop)}), nothing applied, will retry next cycle`);
+    return;
+  }
   const provisioner = path.join(path.dirname(fileURLToPath(import.meta.url)), "provision-claude-accounts.mjs");
-  spawnSync("node", [provisioner], { env: { ...process.env, ...desired }, stdio: ["ignore", "ignore", "inherit"] });
-  const restart = spawnSync("cironctl", ["-t", config.socket, "restart", config.program], {
-    encoding: "utf8",
-    timeout: 60_000,
-  });
-  if (restart.status !== 0) {
-    log(`restart of ${config.program} failed (${(restart.stderr || restart.error?.message || "").trim().split("\n")[0]}), will retry next cycle`);
+  const provisioned = spawnSync("node", [provisioner], { env: { ...process.env, ...desired }, stdio: ["ignore", "ignore", "inherit"] });
+  if (provisioned.status !== 0) {
+    log("Claude account provisioning failed, starting the gateway anyway");
+  }
+  const start = ctl("start");
+  if (start.status !== 0) {
+    log(`FAILED to start ${config.program} again (${failure(start)}): the gateway is DOWN until someone starts it`);
     return;
   }
   Object.assign(state.applied, desired);
