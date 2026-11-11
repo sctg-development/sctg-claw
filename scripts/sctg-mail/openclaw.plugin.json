@@ -1,0 +1,40 @@
+{
+  "id": "sctg-mail",
+  "name": "SCTG Mail",
+  "description": "One safe send_email tool backed by the gog CLI: send-only, allow-listed sender accounts, capped recipients.",
+  "requiresPlugins": [],
+  "skills": ["skills/sctg-mail"],
+  "activation": { "onStartup": true },
+  "contracts": { "tools": ["send_email"] },
+  "toolMetadata": {
+    "send_email": { "optional": false, "sideEffecting": true, "replaySafe": false }
+  },
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "gogBinary": {
+        "type": "string",
+        "description": "Path to the gog CLI. Defaults to \"gog\" (resolved from PATH)."
+      },
+      "defaultAccount": {
+        "type": "string",
+        "description": "Sender account used when send_email is called without `account`. Required unless every call passes an account."
+      },
+      "allowedAccounts": {
+        "type": "array",
+        "items": { "type": "string" },
+        "description": "Sender accounts the tool may use. Defaults to just defaultAccount. Calls naming another account are refused."
+      },
+      "maxRecipients": {
+        "type": "integer",
+        "minimum": 1,
+        "description": "Maximum total recipients (to+cc+bcc) per call. Defaults to 20."
+      },
+      "requireApproval": {
+        "type": "boolean",
+        "description": "Ask the operator to approve every send. Defaults to false so scheduled automations can send unattended."
+      }
+    }
+  }
+}

@@ -711,7 +711,7 @@ RUN install -d -m 0755 -o node -g node /home/node/.config && \
 # /opt is root-owned; pre-create the coach and k8s-ops plugins' target
 # directories here (still root) so the node-owned RUN below -- after USER
 # node -- can write into them instead of failing with "Permission denied".
-RUN install -d -m 0755 -o node -g node /opt/openclaw-coach /opt/k8s-ops
+RUN install -d -m 0755 -o node -g node /opt/openclaw-coach /opt/k8s-ops /opt/sctg-mail
 
 ENV NODE_ENV=production
 ENV VNC_PASSWORD="openclaw"
@@ -772,6 +772,20 @@ RUN cd /tmp/k8s-ops && \
     chown -R node:node /opt/k8s-ops && \
     rm -rf /tmp/k8s-ops
 
+# sctg-mail plugin (scripts/sctg-mail): the one safe send_email tool (gog, send-only,
+# allow-listed accounts) shared by automations and the k8s-ops alerting. Built here and
+# installed at container start, for the same PVC-shadowing reason as the plugins above.
+COPY --from=sctg-scripts --chown=node:node sctg-mail /tmp/sctg-mail
+RUN cd /tmp/sctg-mail && \
+    rm -rf node_modules dist && \
+    npm ci --include=dev && \
+    npm run build && \
+    npm ci --omit=dev && \
+    cd /app && \
+    cp -a /tmp/sctg-mail/. /opt/sctg-mail/ && \
+    chown -R node:node /opt/sctg-mail && \
+    rm -rf /tmp/sctg-mail
+
 # Resolver for the k8s-ops plugin's secrets (see
 # scripts/resolve-k8s-infra-secrets.mjs): writes K8S_INFRA_KUBECONFIG to
 # ~/.kube/config, and clones/pulls the k8s-infra GitOps repo itself (using a
@@ -829,4 +843,4 @@ ENTRYPOINT ["tini", "-s", "--", "node", "/app/docker-entrypoint.mjs"]
 # in /etc/ciron/ciron.toml (see scripts/ciron.toml) and supervised by cirond,
 # which restarts any of them if they die. `exec` replaces this shell with
 # cirond so tini manages it directly as the container's main process.
-CMD ["sh", "-c", "umask 077; eval \"$(node scripts/resolve-keypool-vault.mjs)\"; node scripts/populate-openrouter-free-models.mjs; node scripts/resolve-k8s-infra-secrets.mjs; node openclaw.mjs doctor --fix --non-interactive; node scripts/provision-claude-accounts.mjs; openclaw plugins install /opt/openclaw-coach --force --accept-capabilities; openclaw plugins install /opt/k8s-ops --force --accept-capabilities; exec /usr/sbin/cirond -c /etc/ciron/ciron.toml"]
+CMD ["sh", "-c", "umask 077; eval \"$(node scripts/resolve-keypool-vault.mjs)\"; node scripts/populate-openrouter-free-models.mjs; node scripts/resolve-k8s-infra-secrets.mjs; node openclaw.mjs doctor --fix --non-interactive; node scripts/provision-claude-accounts.mjs; openclaw plugins install /opt/openclaw-coach --force --accept-capabilities; openclaw plugins install /opt/k8s-ops --force --accept-capabilities; openclaw plugins install /opt/sctg-mail --force --accept-capabilities; exec /usr/sbin/cirond -c /etc/ciron/ciron.toml"]

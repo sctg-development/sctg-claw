@@ -1,0 +1,31 @@
+{
+  "name": "@sctg/sctg-mail",
+  "version": "0.1.0",
+  "description": "OpenClaw plugin exposing one safe send_email tool backed by the gog CLI (send-only, allow-listed accounts).",
+  "type": "module",
+  "license": "MIT",
+  "author": "Ronan LE MEILLAT",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": ["dist", "skills", "openclaw.plugin.json"],
+  "scripts": {
+    "build": "tsc",
+    "test": "node --test mail.test.ts"
+  },
+  "dependencies": {
+    "typebox": "1.3.17"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.3",
+    "openclaw": ">=2026.8.2",
+    "typescript": "^5.9.0"
+  },
+  "peerDependencies": {
+    "openclaw": ">=2026.8.2"
+  },
+  "openclaw": {
+    "extensions": ["./dist/index.js"],
+    "compat": { "pluginApi": ">=2026.8.2", "minGatewayVersion": "2026.8.2" },
+    "build": { "openclawVersion": "2026.8.2", "pluginSdkVersion": "2026.8.2" }
+  }
+}
