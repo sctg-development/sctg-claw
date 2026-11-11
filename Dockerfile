@@ -48,13 +48,10 @@
 # build layer is not invalidated by unrelated source changes.
 #
 # Build stages use full bookworm; the runtime image is always bookworm-slim.
-# sctg-claw: bundle our 5 requested providers by default (mistral, cohere,
-# poolside, exa, firecrawl) plus parallel. poolside is vendored under
-# extensions/poolside on the sctg-claw branch (its own ClawHub package ships
-# only a built dist/index.js from a private source repo, MIT-licensed; see
-# that directory's README), patched for API-key rotation the same as the
-# other 4, and bundled here like any other extension.
-ARG OPENCLAW_EXTENSIONS="cohere,exa,firecrawl,mistral,parallel,poolside,whatsapp,signal,acpx"
+# sctg-claw: bundle our requested providers by default (mistral, cohere, exa,
+# firecrawl) plus parallel, and `vibe`, a fork-only provider for Mistral Vibe
+# keys (extensions/vibe on the sctg-claw branch), all with API-key rotation.
+ARG OPENCLAW_EXTENSIONS="cohere,exa,firecrawl,mistral,parallel,vibe,whatsapp,signal,acpx"
 ARG OPENCLAW_BUNDLED_PLUGIN_DIR=extensions
 ARG OPENCLAW_DOCKER_BUILD_NODE_OPTIONS="--max-old-space-size=8192"
 ARG OPENCLAW_DOCKER_BUILD_TSDOWN_MAX_OLD_SPACE_MB=""

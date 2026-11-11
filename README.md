@@ -97,7 +97,7 @@ The image bundles 5 model/tool providers, each configured with a comma-separated
 
 - **Mistral**
 - **Cohere**
-- **Poolside** — vendored under `extensions/poolside` on the `sctg-claw` branch, not part of upstream OpenClaw. Poolside's own `@poolside/openclaw-provider` ClawHub package (MIT-licensed) ships only a built `dist/index.js`; its source repo is private. That build output is checked in as pseudo-source and patched for API-key rotation the same way as the other providers — see `openclaw/extensions/poolside/README.md`.
+- **Vibe** — a fork-only provider (`extensions/vibe` on the `sctg-claw` branch) for Mistral Vibe API keys against `api.mistral.ai`, with per-key rotation of `VIBE_API_KEYS`.
 - **Exa** (web search)
 - **Firecrawl** (web scraping)
 
@@ -114,7 +114,7 @@ The `Dockerfile` therefore builds the image directly from that pinned submodule 
 The submodule (`git@github.com:TEA-ching/openclaw.git`) tracks a `sctg-claw` branch, not upstream `main` directly:
 
 - **`provider-rotate`** — a fix for mistral/cohere/exa/firecrawl: each provider's manifest only recognized the singular `<PROVIDER>_API_KEY` env var, so a key pool configured only via `<PROVIDER>_API_KEYS` (this chart's default) never activated the provider, and none of the four actually rotated across a configured pool on rate limits even when both vars were set. Proposed upstream; see the branch for the PR.
-- **`sctg-claw`** — upstream `main` merged with `provider-rotate`, plus the vendored Poolside provider (`extensions/poolside`, see [Providers](#providers)) patched the same way. This is the branch the `Dockerfile`/CI actually build. Poolside isn't part of upstream OpenClaw, so it stays `sctg-claw`-only; once `provider-rotate` lands upstream, `sctg-claw` otherwise collapses back to upstream `main` plus just that one addition.
+- **`sctg-claw`** — upstream `main` merged with `provider-rotate`, plus the fork-only Vibe provider (`extensions/vibe`, see [Providers](#providers)). This is the branch the `Dockerfile`/CI actually build. The Vibe provider isn't part of upstream OpenClaw, so it stays `sctg-claw`-only; once `provider-rotate` lands upstream, `sctg-claw` otherwise collapses back to upstream `main` plus just that one addition.
 
 ## Building the image
 
@@ -211,9 +211,9 @@ openclaw:
     agents:
       defaults:
         model:
-          primary: "poolside/laguna-s-2.1"       # default model
+          primary: "mistral/mistral-large-latest"  # default model
         modelPolicy:
-          allow: ["poolside/*", "mistral/*"]      # optional allow-list; empty/absent = any model
+          allow: ["mistral/*", "vibe/*"]           # optional allow-list; empty/absent = any model
     gateway:
       auth:
         mode: trusted-proxy

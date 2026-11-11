@@ -34,7 +34,6 @@ export const KEY_POOL_TARGETS = [
   { section: "providers", name: "mistral", env: "MISTRAL_API_KEYS" },
   { section: "providers", name: "vibe", env: "VIBE_API_KEYS" },
   { section: "providers", name: "cohere", env: "COHERE_API_KEYS" },
-  { section: "providers", name: "poolside", env: "POOLSIDE_API_KEYS" },
   { section: "providers", name: "openrouter", env: "OPENROUTER_API_KEYS" },
   { section: "providers", name: "elevenlabs", env: "ELEVENLABS_API_KEYS" },
   { section: "providers", name: "gemini", env: "GEMINI_API_KEYS" },

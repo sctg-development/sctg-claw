@@ -39,19 +39,19 @@ service:
   sandboxPort: 18790
 
 # Name of a pre-existing secret containing OpenClaw and provider environment variables.
-# Example keys: MISTRAL_API_KEYS, COHERE_API_KEYS, POOLSIDE_API_KEYS.
+# Example keys: MISTRAL_API_KEYS, COHERE_API_KEYS, VIBE_API_KEYS.
 #
 # Create a secret with one key per provider:
 # kubectl -n claw create secret generic claw-provider-keys \
 #   --from-literal=MISTRAL_API_KEYS='mistral-api-key' \
 #   --from-literal=COHERE_API_KEYS='cohere-api-key' \
-#   --from-literal=POOLSIDE_API_KEYS='poolside-api-key'
+#   --from-literal=VIBE_API_KEYS='vibe-api-key'
 #
 # Create a secret with multiple keys per provider (comma-separated):
 # kubectl -n claw create secret generic claw-provider-keys \
 #   --from-literal=MISTRAL_API_KEYS='mistral-api-key-1,mistral-api-key-2' \
 #   --from-literal=COHERE_API_KEYS='cohere-api-key-1,cohere-api-key-2' \
-#   --from-literal=POOLSIDE_API_KEYS='poolside-api-key-1,poolside-api-key-2'
+#   --from-literal=VIBE_API_KEYS='vibe-api-key-1,vibe-api-key-2'
 openclaw:
   gogKeyringPassword: ""
   tailnet:
@@ -83,7 +83,6 @@ openclaw:
     # Vibe API keys are distinct from the Mistral API keys above, but the Vibe runtime in the image
     vibeApiKeys: ""
     cohereApiKeys: ""
-    poolsideApiKeys: ""
     exaApiKeys: ""
     firecrawlApiKeys: ""
     googlePlacesApiKeys: ""
@@ -106,7 +105,7 @@ openclaw:
     claudeCodeOauthToken: ""
     # KeypoolLive vault (git@github.com:sctg-development/ai-proxy-cloudflare.git):
     # when both are set, the container resolves mistralApiKeys/cohereApiKeys/
-    # poolsideApiKeys/firecrawlApiKeys/exaApiKeys above from this encrypted
+    # vibeApiKeys/firecrawlApiKeys/exaApiKeys above from this encrypted
     # vault at startup instead of the hardcoded values, falling back to
     # whichever of those hardcoded values are still set for any provider the
     # vault doesn't cover. See scripts/resolve-keypool-vault.mjs.

@@ -70,7 +70,6 @@
                         },
                         "mistralApiKeys": { "type": "string" },
                         "cohereApiKeys": { "type": "string" },
-                        "poolsideApiKeys": { "type": "string" },
                         "exaApiKeys": { "type": "string" },
                         "firecrawlApiKeys": { "type": "string" },
                         "googlePlacesApiKeys": { "type": "string" },
