@@ -59,12 +59,12 @@ ARG OPENCLAW_BUNDLED_PLUGIN_DIR=extensions
 ARG OPENCLAW_DOCKER_BUILD_NODE_OPTIONS="--max-old-space-size=8192"
 ARG OPENCLAW_DOCKER_BUILD_TSDOWN_MAX_OLD_SPACE_MB=""
 ARG OPENCLAW_DOCKER_BUILD_SKIP_DTS=1
-ARG OPENCLAW_NODE_BOOKWORM_IMAGE="docker.io/library/node:24-bookworm@sha256:64af3819f9275802414d7cdc38c27e9d82bd564dec4d4da87d008255d36c63b4"
-ARG OPENCLAW_NODE_BOOKWORM_SLIM_IMAGE="docker.io/library/node:24-bookworm-slim@sha256:0e0ff40c39bc087845bfb27465a0df4ea419520094bc35842ff83dd8cbe6f9b6"
-ARG OPENCLAW_NODE_BOOKWORM_SLIM_DIGEST="sha256:0e0ff40c39bc087845bfb27465a0df4ea419520094bc35842ff83dd8cbe6f9b6"
-# Keep in sync with .github/actions/setup-node-env/action.yml bun-version.
+ARG OPENCLAW_NODE_BOOKWORM_IMAGE="docker.io/library/node:24.22.1-bookworm@sha256:6449e19d8184d84062525b6a7524def03146c2cb04a7f08b076680d0e8e4240a"
+ARG OPENCLAW_NODE_BOOKWORM_SLIM_IMAGE="docker.io/library/node:24.22.1-bookworm-slim@sha256:55fb5f5a527ea2c5c4a95f963e48ef90aa38c7b346054fdc8ee9957a2b55d205"
+ARG OPENCLAW_NODE_BOOKWORM_SLIM_DIGEST="sha256:55fb5f5a527ea2c5c4a95f963e48ef90aa38c7b346054fdc8ee9957a2b55d205"
+# Keep in sync with .github/actions/setup-node-env/action.yml and seed-bun-from-image.mjs.
 # To update: docker buildx imagetools inspect docker.io/oven/bun:<version> and use the manifest-list digest.
-ARG OPENCLAW_BUN_IMAGE="docker.io/oven/bun:1.4.2@sha256:9114c058aeae42162ee16dd5084b95fe9473970bb6bcb5b232ab1630f0546895"
+ARG OPENCLAW_BUN_IMAGE="docker.io/oven/bun:1.4.4@sha256:1d22548f177f4ff38e0c15baa3c2c46c6c2060ba2d1bc573bb4720b407548f1d"
 
 # Base images are pinned to SHA256 digests for reproducible builds.
 # Dependabot refreshes these blessed digests; release builds consume the
@@ -220,7 +220,6 @@ RUN pnpm_config_verify_deps_before_run=false pnpm canvas:a2ui:bundle || \
     (echo "A2UI bundle: creating stub (non-fatal)" && \
      mkdir -p extensions/canvas/src/host/a2ui && \
      echo "/* A2UI bundle unavailable in this build */" > extensions/canvas/src/host/a2ui/a2ui.bundle.js && \
-     echo "stub" > extensions/canvas/src/host/a2ui/.bundle.hash && \
      rm -rf vendor/a2ui apps/shared/OpenClawKit/Tools/CanvasA2UI)
 # Force pnpm for UI build (Bun may fail on ARM/Synology architectures)
 ENV OPENCLAW_PREFER_PNPM=1
@@ -355,7 +354,7 @@ RUN set -eu; \
 # ── Runtime base image ──────────────────────────────────────────
 FROM ${OPENCLAW_NODE_BOOKWORM_SLIM_IMAGE} AS base-runtime
 ARG OPENCLAW_NODE_BOOKWORM_SLIM_DIGEST
-LABEL org.opencontainers.image.base.name="docker.io/library/node:24-bookworm-slim" \
+LABEL org.opencontainers.image.base.name="docker.io/library/node:24.22.1-bookworm-slim" \
   org.opencontainers.image.base.digest="${OPENCLAW_NODE_BOOKWORM_SLIM_DIGEST}"
 
 # ── Stage 3: Runtime ────────────────────────────────────────────
@@ -665,11 +664,17 @@ RUN ln -sf /usr/local/share/uv/tools/mistral-vibe/bin/vibe /usr/local/bin/vibe &
     vibe --version
 
 # KeypoolLive vault resolver (see scripts/resolve-keypool-vault.mjs): populates
-# MISTRAL_API_KEYS/COHERE_API_KEYS/POOLSIDE_API_KEYS/FIRECRAWL_API_KEYS/EXA_API_KEYS
+# the *_API_KEYS pools (see KEY_POOL_TARGETS) and CLAUDE_CODE_OAUTH_TOKEN_<NAME>
 # from an encrypted vault at container start instead of hardcoding them, when
 # KEYPOOL_VAULT_URL/KEYPOOL_LIVE_SECRET are set. A sibling of openclaw/, so it
 # comes from its own named build context (see header comment above).
 COPY --from=sctg-scripts --chown=node:node resolve-keypool-vault.mjs ./scripts/resolve-keypool-vault.mjs
+
+# Claude account provisioner (see scripts/provision-claude-accounts.mjs): turns each
+# CLAUDE_CODE_OAUTH_TOKEN_<NAME> exported by the vault resolver above into an OpenClaw
+# auth profile `anthropic:<name>` (the claude-cli backend strips the raw env var), then
+# sets the failover order between the accounts.
+COPY --from=sctg-scripts --chown=node:node provision-claude-accounts.mjs ./scripts/provision-claude-accounts.mjs
 
 # OpenRouter free-model populator (see scripts/populate-openrouter-free-models.mjs):
 # independent of the openclaw package, it queries OpenRouter's live catalog
@@ -810,6 +815,8 @@ ENTRYPOINT ["tini", "-s", "--", "node", "/app/docker-entrypoint.mjs"]
 # `doctor --fix --non-interactive` repairs/migrates state on the retained PVC
 # after an image upgrade (what upstream's entrypoint does for a plain gateway
 # CMD); `;` so a repair hiccup is logged but never blocks startup.
+# provision-claude-accounts.mjs runs right after doctor (the CLI needs the repaired state)
+# and stores one auth profile per Claude account; it never blocks startup.
 # The coach plugin install (see /opt/openclaw-coach above) runs here, not at
 # build time, because /home/node/.openclaw is on the persistence PVC and a
 # build-time install would be invisible at runtime. `;` (not `&&`) so a
@@ -819,4 +826,4 @@ ENTRYPOINT ["tini", "-s", "--", "node", "/app/docker-entrypoint.mjs"]
 # in /etc/ciron/ciron.toml (see scripts/ciron.toml) and supervised by cirond,
 # which restarts any of them if they die. `exec` replaces this shell with
 # cirond so tini manages it directly as the container's main process.
-CMD ["sh", "-c", "umask 077; eval \"$(node scripts/resolve-keypool-vault.mjs)\"; node scripts/populate-openrouter-free-models.mjs; node scripts/resolve-k8s-infra-secrets.mjs; node openclaw.mjs doctor --fix --non-interactive; openclaw plugins install /opt/openclaw-coach --force --accept-capabilities; openclaw plugins install /opt/k8s-ops --force --accept-capabilities; exec /usr/sbin/cirond -c /etc/ciron/ciron.toml"]
+CMD ["sh", "-c", "umask 077; eval \"$(node scripts/resolve-keypool-vault.mjs)\"; node scripts/populate-openrouter-free-models.mjs; node scripts/resolve-k8s-infra-secrets.mjs; node openclaw.mjs doctor --fix --non-interactive; node scripts/provision-claude-accounts.mjs; openclaw plugins install /opt/openclaw-coach --force --accept-capabilities; openclaw plugins install /opt/k8s-ops --force --accept-capabilities; exec /usr/sbin/cirond -c /etc/ciron/ciron.toml"]
