@@ -12,8 +12,8 @@ on:
       - mistral-vibe
       - k8s-infra
       - .github/workflows/docker-publish.yml
-      - scripts/ciron.toml
-      - scripts/resolve-k8s-infra-secrets.mjs
+      - scripts/**
+      - .github/scripts/**
   pull_request:
     branches: [ main ]
     paths:
@@ -24,14 +24,34 @@ on:
       - mistral-vibe
       - k8s-infra
       - .github/workflows/docker-publish.yml
-      - scripts/ciron.toml
-      - scripts/resolve-k8s-infra-secrets.mjs
+      - scripts/**
+      - .github/scripts/**
 
 env:
   REGISTRY: docker.io
   IMAGE_NAME: sctg/claw
 
 jobs:
+  # Everything this build copies out of ./scripts and the private k8s-infra plugin ends up in the PUBLIC
+  # image. Fail before building if it contains a secret-shaped string, a private IPv4 address, or an
+  # e-mail that is not a placeholder (see .github/scripts/check-public-content.mjs).
+  public-content-guard:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          submodules: recursive
+          token: ${{ secrets.K8S_INFRA_PAT || secrets.GITHUB_TOKEN }}
+
+      - name: Guard self-test
+        run: node --test .github/scripts/check-public-content.test.mjs
+
+      - name: Scan files shipped in the public image
+        run: node .github/scripts/check-public-content.mjs
+
   # Builds each platform natively (no QEMU): the OpenClaw Dockerfile explicitly
   # warns that the A2UI (canvas) bundle can fail under QEMU cross-compilation
   # and silently fall back to a non-functional stub, while native per-arch
@@ -39,6 +59,7 @@ jobs:
   # native arm64 and free for public repos, matching this repo's 7-arm64/1-amd64
   # target cluster without that degradation.
   build:
+    needs: public-content-guard
     strategy:
       fail-fast: false
       matrix:
