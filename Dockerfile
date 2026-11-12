@@ -788,6 +788,10 @@ RUN cd /tmp/sctg-mail && \
     chown -R node:node /opt/sctg-mail && \
     rm -rf /tmp/sctg-mail
 
+# fork-sync-watch (scripts/fork-sync): the command cron job that dispatches the fork-sync workflow on the
+# forks, follows the run and mails one report per sync (through /opt/sctg-mail). No dependency, no build step.
+COPY --from=sctg-scripts --chown=node:node fork-sync/fork-sync-watch.mjs /opt/fork-sync/fork-sync-watch.mjs
+
 # Resolver for the k8s-ops plugin's secrets (see
 # scripts/resolve-k8s-infra-secrets.mjs): writes K8S_INFRA_KUBECONFIG to
 # ~/.kube/config, and clones/pulls the k8s-infra GitOps repo itself (using a

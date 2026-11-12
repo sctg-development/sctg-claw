@@ -202,6 +202,14 @@ openclaw:
     alertSmtpPassword: ""
     # Cloudflare API token restricted to the "Email Sending: Write" account permission. NOT a global token.
     cloudflareEmailApiToken: ""
+    # Fine-grained GitHub token for the `fork-sync-watch` cron (scripts/fork-sync): it dispatches the fork-sync
+    # workflow on the forks and reads its result. Grant ONLY "Actions: read and write" on those repositories
+    # (no Contents, no Pull requests, no Administration). Put it in your private encrypted values.
+    forkSyncGithubToken: ""
+    # A fine-grained token belongs to ONE owner. Forks under another owner take their own token here, keyed by
+    # the owner name, e.g. { sctg-development: github_pat_... } becomes FORK_SYNC_GH_TOKEN_SCTG_DEVELOPMENT and
+    # wins over forkSyncGithubToken for that owner's repositories.
+    forkSyncGithubTokens: {}
   # This map is rendered as /home/node/.openclaw/openclaw.json.
   # Add any supported OpenClaw configuration section here. Use SecretRef objects
   # for sensitive values, for example: { source: env, provider: default, id: TOKEN }.

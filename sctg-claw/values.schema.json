@@ -186,6 +186,15 @@
                         "cloudflareEmailApiToken": {
                             "type": "string",
                             "description": "Cloudflare API token (CLOUDFLARE_EMAIL_API_TOKEN) limited to Email Sending: Write, for the Cloudflare alert fallback. Never a global token."
+                        },
+                        "forkSyncGithubToken": {
+                            "type": "string",
+                            "description": "Fine-grained GitHub token (FORK_SYNC_GH_TOKEN) with only Actions: read and write on the forks, used by the fork-sync-watch cron to dispatch the fork-sync workflow and read its result."
+                        },
+                        "forkSyncGithubTokens": {
+                            "type": "object",
+                            "description": "Per-owner tokens for fork-sync-watch (a fine-grained token covers one owner). Key = owner name, rendered as FORK_SYNC_GH_TOKEN_<OWNER>, which wins over forkSyncGithubToken for that owner.",
+                            "additionalProperties": { "type": "string" }
                         }
                     }
                 },
