@@ -8,7 +8,7 @@
 //
 //   1. RETIRED_MODEL_REFS: a retired model ref is replaced by its successor wherever it appears (list
 //      items, object values, object keys). Only refs confirmed gone from the vendor catalog belong here.
-//   2. REQUIRED_ALLOWED: provider wildcards the image ships are added to agents.defaults.modelPolicy.allow
+//   2. REQUIRED_ALLOWED: provider wildcards (vibe/*, anthropic/*) are added to agents.defaults.modelPolicy.allow
 //      IF that list is active. An absent or empty list means "any model allowed"; creating one would
 //      newly restrict the agent, so it is never created here.
 //   3. OPENCLAW_CONFIG_OVERRIDES: a JSON object (chart value `openclaw.configOverrides`) deep-merged over
@@ -35,8 +35,12 @@ export const RETIRED_MODEL_REFS = {
   "anthropic/opus-5": "anthropic/claude-opus-5-5",
 };
 
-/** Provider wildcards this image ships and that must stay allowed when an allow-list is active. */
-export const REQUIRED_ALLOWED = ["vibe/*"];
+/**
+ * Provider wildcards that must stay allowed when an allow-list is active: `vibe/*` (shipped by this
+ * image) and `anthropic/*` (operator decision: the Anthropic catalog is live per account, so a wildcard
+ * keeps new models selectable and spares chasing retired ids; it also lifts any per-model cost limit).
+ */
+export const REQUIRED_ALLOWED = ["vibe/*", "anthropic/*"];
 
 const FORBIDDEN_KEYS = new Set(["__proto__", "constructor", "prototype"]);
 const isObject = (v) => v !== null && typeof v === "object" && !Array.isArray(v);

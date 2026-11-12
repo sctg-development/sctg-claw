@@ -79,7 +79,7 @@ test("parseOverrides: empty is fine, bad JSON or a non-object is an error", () =
   assert.deepEqual(parseOverrides('{"a":1}'), { overrides: { a: 1 } });
 });
 
-test("reconcile on the real-world drift: both retired refs replaced, vibe/* added, the rest untouched", () => {
+test("reconcile on the real-world drift: both retired refs replaced, vibe/* and anthropic/* added, the rest untouched", () => {
   const cfg = {
     agents: {
       defaults: { modelPolicy: { allow: ["acp-vibe/*", "anthropic/opus-5", "anthropic/claude-haiku-4-5", "openrouter/x/y:free"] } },
@@ -93,9 +93,10 @@ test("reconcile on the real-world drift: both retired refs replaced, vibe/* adde
     "anthropic/claude-haiku-5-5",
     "openrouter/x/y:free",
     "vibe/*",
+    "anthropic/*",
   ]);
   assert.deepEqual(cfg.agents.entries.main.model.fallbacks, ["anthropic/claude-haiku-5-5", "mistral/small"]);
-  assert.equal(changes.length, 4);
+  assert.equal(changes.length, 5);
 });
 
 // --- the script itself, on a temporary state dir ------------------------------------------------
@@ -117,7 +118,7 @@ test("script: fixes the file, keeps a 0600 backup, and a second start changes no
   const dir = stateDir(DRIFTED);
   const first = runScript(dir);
   assert.equal(first.status, 0);
-  assert.deepEqual(read(dir).agents.defaults.modelPolicy.allow, ["anthropic/claude-haiku-5-5", "vibe/*"]);
+  assert.deepEqual(read(dir).agents.defaults.modelPolicy.allow, ["anthropic/claude-haiku-5-5", "vibe/*", "anthropic/*"]);
   assert.deepEqual(read(dir).keep, { me: true });
   const backup = path.join(dir, "openclaw.json.pre-reconcile.bak");
   assert.deepEqual(JSON.parse(readFileSync(backup, "utf8")), DRIFTED);
@@ -155,7 +156,7 @@ test("script: a bad overrides variable is ignored without breaking the start", (
   const r = runScript(dir, { OPENCLAW_CONFIG_OVERRIDES: "{not json" });
   assert.equal(r.status, 0);
   assert.match(r.stderr, /OPENCLAW_CONFIG_OVERRIDES ignored/);
-  assert.deepEqual(read(dir).agents.defaults.modelPolicy.allow, ["anthropic/claude-haiku-5-5", "vibe/*"]);
+  assert.deepEqual(read(dir).agents.defaults.modelPolicy.allow, ["anthropic/claude-haiku-5-5", "vibe/*", "anthropic/*"]);
 });
 
 test("script: dry run reports but writes nothing", () => {
