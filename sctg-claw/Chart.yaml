@@ -2,8 +2,8 @@ apiVersion: v2
 name: claw
 description: "Helm chart to deploy OpenClaw Gateway with optional mobile authentication broker"
 type: application
-version: 1.0.2
-appVersion: "2026.9.6"
+version: 1.0.3
+appVersion: "2026.11.3"
 
 dependencies:
 - name: cloudflared
