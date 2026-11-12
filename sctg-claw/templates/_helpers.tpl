@@ -79,6 +79,16 @@ Usage: {{ include "claw.providerApiKeyEnv" (dict "envName" "MISTRAL" "raw" .) }}
 {{- end }}
 
 {{/*
+Generate the mc alias setup commands as a single shell script string.
+*/}}
+{{- define "claw.mcAliasSetupCmd" -}}
+{{- range $aliasName, $alias := .Values.openclaw.mc.aliases }}
+echo "Setting up mc alias: {{ $aliasName }}"
+mc alias set "{{ $aliasName }}" "{{ $alias.endpoint }}" "{{ $alias.accessKey }}" "{{ $alias.secretKey }}"
+{{- end }}
+{{- end -}}
+
+{{/*
 kubeconfig that authenticates with the pod's own ServiceAccount token (tokenFile is re-read, so Kubernetes'
 automatic rotation just works). It contains NO secret: only paths and the API server address.
 */}}

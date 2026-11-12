@@ -84,14 +84,7 @@ spec:
           command:
             - sh
             - -c
-            - |
-              set -e
-              {{- range $aliasName, $alias := .Values.openclaw.mc.aliases }}
-              echo "Setting up mc alias: {{ $aliasName }}"
-              mc alias set "{{ $aliasName }}" "{{ $alias.endpoint }}" "{{ $alias.accessKey }}" "{{ $alias.secretKey }}"
-              {{- end }}
-              echo "mc aliases configured successfully"
-              mc alias list
+            - {{ printf "set -e\n%s\necho \"mc aliases configured successfully\"\nmc alias list" (include "claw.mcAliasSetupCmd" .) | quote }}
           securityContext:
             runAsUser: 1000
             runAsGroup: 1000
