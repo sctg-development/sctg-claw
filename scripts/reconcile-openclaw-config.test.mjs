@@ -79,7 +79,7 @@ test("parseOverrides: empty is fine, bad JSON or a non-object is an error", () =
   assert.deepEqual(parseOverrides('{"a":1}'), { overrides: { a: 1 } });
 });
 
-test("reconcile on the real-world drift: haiku-4-5 replaced, vibe/* added, odd entries untouched", () => {
+test("reconcile on the real-world drift: both retired refs replaced, vibe/* added, the rest untouched", () => {
   const cfg = {
     agents: {
       defaults: { modelPolicy: { allow: ["acp-vibe/*", "anthropic/opus-5", "anthropic/claude-haiku-4-5", "openrouter/x/y:free"] } },
@@ -89,13 +89,13 @@ test("reconcile on the real-world drift: haiku-4-5 replaced, vibe/* added, odd e
   const changes = reconcile(cfg);
   assert.deepEqual(cfg.agents.defaults.modelPolicy.allow, [
     "acp-vibe/*",
-    "anthropic/opus-5",
+    "anthropic/claude-opus-5-5",
     "anthropic/claude-haiku-5-5",
     "openrouter/x/y:free",
     "vibe/*",
   ]);
   assert.deepEqual(cfg.agents.entries.main.model.fallbacks, ["anthropic/claude-haiku-5-5", "mistral/small"]);
-  assert.equal(changes.length, 3);
+  assert.equal(changes.length, 4);
 });
 
 // --- the script itself, on a temporary state dir ------------------------------------------------
@@ -111,6 +111,7 @@ const runScript = (dir, env = {}) =>
 const read = (dir) => JSON.parse(readFileSync(path.join(dir, "openclaw.json"), "utf8"));
 
 const DRIFTED = { agents: { defaults: { modelPolicy: { allow: ["anthropic/claude-haiku-4-5"] } } }, keep: { me: true } };
+
 
 test("script: fixes the file, keeps a 0600 backup, and a second start changes nothing", () => {
   const dir = stateDir(DRIFTED);

@@ -26,9 +26,13 @@ import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
-/** Refs gone from the vendor catalog -> their successor. Confirmed against the live provider catalog. */
+/**
+ * Refs that no longer resolve -> their successor. Each entry was checked against the live provider
+ * catalog (claude-haiku-4-5 is gone from it) or confirmed by the operator (the malformed `opus-5`).
+ */
 export const RETIRED_MODEL_REFS = {
   "anthropic/claude-haiku-4-5": "anthropic/claude-haiku-5-5",
+  "anthropic/opus-5": "anthropic/claude-opus-5-5",
 };
 
 /** Provider wildcards this image ships and that must stay allowed when an allow-list is active. */
