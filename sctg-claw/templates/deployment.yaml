@@ -77,6 +77,28 @@ spec:
             - name: openclaw-config
               mountPath: /openclaw-config
               readOnly: true
+        {{- if .Values.openclaw.mc.aliases }}
+        - name: init-mc-aliases
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - sh
+            - -c
+            - |
+              set -e
+              {{- range $aliasName, $alias := .Values.openclaw.mc.aliases }}
+              echo "Setting up mc alias: {{ $aliasName }}"
+              mc alias set "{{ $aliasName }}" "{{ $alias.endpoint }}" "{{ $alias.accessKey }}" "{{ $alias.secretKey }}"
+              {{- end }}
+              echo "mc aliases configured successfully"
+              mc alias list
+          securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
+          volumeMounts:
+            - name: data
+              mountPath: {{ .Values.persistence.mountPath }}
+        {{- end }}
       containers:
         - name: gateway
           lifecycle:

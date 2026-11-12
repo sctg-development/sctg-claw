@@ -266,6 +266,19 @@ openclaw:
   # auth via -passwd; use -passwdfile for longer).
   vnc:
     password: "openclaw"
+  # MinIO Client (mc) aliases for S3-compatible storage.
+  # Each alias defines an S3 endpoint with credentials. Configured at pod startup
+  # via an init container that runs `mc alias set`. The mc config persists on the
+  # data PVC at ~/.mc/config.json.
+  # Example:
+  #   mc:
+  #     aliases:
+  #       my-minio:
+  #         endpoint: "https://minio.example.com"
+  #         accessKey: "minioadmin"
+  #         secretKey: "minioadmin"
+  mc:
+    aliases: {}
   # Skip automatic workspace bootstrap (BOOTSTRAP.md birth sequence, template
   # seeding of AGENTS.md/SOUL.md/IDENTITY.md/USER.md). Pre-seed those files
   # via the init container from openclaw.workspaceFiles instead, so the agent
