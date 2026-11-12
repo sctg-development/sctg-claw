@@ -136,6 +136,46 @@ spec:
             - name: OPENCLAW_CONFIG_OVERRIDES
               value: {{ toJson . | quote }}
             {{- end }}
+            {{- with .Values.openclaw.alert }}
+            {{- if .fallbackRecipients }}
+            - name: ALERT_FALLBACK_RECIPIENTS
+              value: {{ .fallbackRecipients | quote }}
+            {{- end }}
+            {{- if .account }}
+            - name: SCTG_MAIL_ACCOUNT
+              value: {{ .account | quote }}
+            {{- end }}
+            {{- with .smtp }}
+            {{- if .user }}
+            - name: ALERT_SMTP_HOST
+              value: {{ .host | quote }}
+            - name: ALERT_SMTP_PORT
+              value: {{ .port | quote }}
+            - name: ALERT_SMTP_USER
+              value: {{ .user | quote }}
+            {{- if .from }}
+            - name: ALERT_SMTP_FROM
+              value: {{ .from | quote }}
+            {{- end }}
+            {{- end }}
+            {{- end }}
+            {{- with .cloudflare }}
+            {{- if and .accountId .from }}
+            - name: CLOUDFLARE_EMAIL_ACCOUNT_ID
+              value: {{ .accountId | quote }}
+            - name: CLOUDFLARE_EMAIL_FROM
+              value: {{ .from | quote }}
+            {{- if .fromName }}
+            - name: CLOUDFLARE_EMAIL_FROM_NAME
+              value: {{ .fromName | quote }}
+            {{- end }}
+            {{- end }}
+            {{- end }}
+            {{- end }}
+            {{- if .Values.openclaw.argocd.plaintext }}
+            - name: ARGOCD_OPTS
+              value: "--plaintext"
+            {{- end }}
           {{- if include "claw.openclawSecretName" . }}
           envFrom:
             - secretRef:

@@ -1,28 +1,8 @@
-import { execFile } from "node:child_process";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import path from "node:path";
 import { Type } from "typebox";
 import { definePluginEntry } from "openclaw/plugin-sdk/plugin-entry";
-import { buildGogArgs, explainGogFailure, validateMail, type MailConfig } from "./mail.js";
-
-const SEND_TIMEOUT_MS = 60_000;
-const MAX_BUFFER_BYTES = 1024 * 1024;
-
-type Outcome = { code: number; stdout: string; stderr: string };
-
-function run(bin: string, args: string[], env: NodeJS.ProcessEnv): Promise<Outcome> {
-  return new Promise((resolve) => {
-    execFile(bin, args, { timeout: SEND_TIMEOUT_MS, maxBuffer: MAX_BUFFER_BYTES, env }, (error, stdout, stderr) => {
-      if (!error) {
-        resolve({ code: 0, stdout, stderr });
-        return;
-      }
-      const code = typeof (error as { code?: unknown }).code === "number" ? (error as { code: number }).code : 1;
-      resolve({ code, stdout, stderr: stderr || error.message });
-    });
-  });
-}
+import { makeGogSender } from "./gog-send.js";
+import { validateMail, type MailConfig } from "./mail.js";
+import { fallbackConfigFromEnv, nodemailerSmtpSend, sendWithFallback } from "./transports.js";
 
 const Addresses = Type.Union([Type.String(), Type.Array(Type.String())], {
   description: "One address, a comma-separated string, or an array of addresses. Bare addresses only (no display names).",
@@ -34,9 +14,7 @@ export default definePluginEntry({
   description: "One safe send_email tool backed by the gog CLI.",
   register(api) {
     const cfg = (api.pluginConfig ?? {}) as MailConfig;
-    const gogBinary = cfg.gogBinary?.trim() || "gog";
-    // Same convention as the existing automations: an empty keyring password unless the chart sets one.
-    const env: NodeJS.ProcessEnv = { ...process.env, GOG_KEYRING_PASSWORD: process.env.GOG_KEYRING_PASSWORD ?? "" };
+    const sendViaGog = makeGogSender({ gogBinary: cfg.gogBinary?.trim() || "gog", env: process.env });
 
     api.registerTool({
       name: "send_email",
@@ -61,7 +39,7 @@ export default definePluginEntry({
         { additionalProperties: false },
       ),
       outputSchema: Type.Object(
-        { ok: Type.Boolean(), account: Type.Optional(Type.String()), recipients: Type.Optional(Type.Number()), error: Type.Optional(Type.String()), output: Type.Optional(Type.String()) },
+        { ok: Type.Boolean(), account: Type.Optional(Type.String()), recipients: Type.Optional(Type.Number()), transport: Type.Optional(Type.String()), degraded: Type.Optional(Type.Boolean()), attempts: Type.Optional(Type.Unknown()), error: Type.Optional(Type.String()) },
         { additionalProperties: false },
       ),
       async execute(_id, rawParams) {
@@ -73,34 +51,27 @@ export default definePluginEntry({
           };
         }
         const { mail } = validation;
-        const dir = await mkdtemp(path.join(tmpdir(), "sctg-mail-"));
-        try {
-          const files: { htmlFile?: string; textFile?: string } = {};
-          if (mail.bodyHtml) {
-            files.htmlFile = path.join(dir, "body.html");
-            await writeFile(files.htmlFile, mail.bodyHtml, { mode: 0o600 });
-          }
-          if (mail.bodyText) {
-            files.textFile = path.join(dir, "body.txt");
-            await writeFile(files.textFile, mail.bodyText, { mode: 0o600 });
-          }
-          const result = await run(gogBinary, buildGogArgs(mail, files), env);
-          const recipients = mail.to.length + mail.cc.length + mail.bcc.length;
-          if (result.code !== 0) {
-            const error = explainGogFailure(result.stderr || result.stdout);
-            return {
-              content: [{ type: "text", text: `send_email failed from ${mail.account}: ${error}` }],
-              details: { ok: false, account: mail.account, recipients, error },
-            };
-          }
-          const verb = mail.dryRun ? "validated (dry run, nothing sent)" : "sent";
+        const recipients = mail.to.length + mail.cc.length + mail.bcc.length;
+        const result = await sendWithFallback(mail, fallbackConfigFromEnv(process.env), {
+          sendViaGog,
+          smtpSend: nodemailerSmtpSend,
+          fetch,
+        });
+        const base = { account: mail.account, recipients, transport: result.transport, degraded: result.degraded, attempts: result.attempts };
+        if (!result.ok) {
           return {
-            content: [{ type: "text", text: `Email ${verb} from ${mail.account} to ${recipients} recipient(s).` }],
-            details: { ok: true, account: mail.account, recipients, output: result.stdout.trim().slice(0, 500) },
+            content: [{ type: "text", text: `send_email failed from ${mail.account}: ${result.error}` }],
+            details: { ok: false, ...base, error: result.error },
           };
-        } finally {
-          await rm(dir, { recursive: true, force: true });
         }
+        const verb = mail.dryRun ? "validated (dry run, nothing sent)" : "sent";
+        const warning = result.degraded
+          ? ` WARNING: the main channel (gog) failed, so it went through the ${result.transport} fallback; the account's Google token probably needs attention (${result.attempts[0]?.detail ?? ""}).`
+          : "";
+        return {
+          content: [{ type: "text", text: `Email ${verb} from ${mail.account} to ${recipients} recipient(s) via ${result.transport}.${warning}` }],
+          details: { ok: true, ...base },
+        };
       },
     });
 

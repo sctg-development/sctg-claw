@@ -7,6 +7,8 @@ const rules = (text) => scanText(text, "f").map((x) => x.rule);
 test("flags real-looking e-mails but not placeholders", () => {
   assert.deepEqual(rules("contact: someone@company.fr"), ["email"]);
   assert.deepEqual(rules("a@example.org b@x.org git@github.com:o/r.git noreply@anthropic.com"), []);
+  assert.deepEqual(rules("alerts@alerts.example.org"), [], "subdomains of example.org are reserved too");
+  assert.deepEqual(rules("a@notexample.org b@example.org.evil.com"), ["email", "email"], "lookalikes must still be flagged");
 });
 
 test("flags secret shapes without echoing the value", () => {

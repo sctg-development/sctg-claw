@@ -3,7 +3,9 @@
     "target": "ES2022",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
-    "lib": ["ES2022"],
+    "lib": [
+      "ES2022"
+    ],
     "strict": true,
     "declaration": true,
     "outDir": "dist",
@@ -13,5 +15,11 @@
     "forceConsistentCasingInFileNames": true,
     "allowImportingTsExtensions": false
   },
-  "include": ["index.ts", "mail.ts"]
+  "include": [
+    "index.ts",
+    "mail.ts",
+    "transports.ts",
+    "gog-send.ts",
+    "cli.ts"
+  ]
 }

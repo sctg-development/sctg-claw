@@ -48,6 +48,37 @@
                     "type": "string",
                     "description": "Password for the gogcli keyring (GOG_KEYRING_PASSWORD). Required for gogcli to access the encrypted keyring."
                 },
+                "alert": {
+                    "type": "object",
+                    "description": "E-mail alert delivery fallbacks (SMTP Gmail, Cloudflare Email Sending) used only when gog fails. Fallbacks only send to fallbackRecipients.",
+                    "properties": {
+                        "fallbackRecipients": { "type": "string" },
+                        "account": { "type": "string" },
+                        "smtp": {
+                            "type": "object",
+                            "properties": {
+                                "host": { "type": "string" },
+                                "port": { "type": ["integer", "string"] },
+                                "user": { "type": "string" },
+                                "from": { "type": "string" }
+                            }
+                        },
+                        "cloudflare": {
+                            "type": "object",
+                            "properties": {
+                                "accountId": { "type": "string" },
+                                "from": { "type": "string" },
+                                "fromName": { "type": "string" }
+                            }
+                        }
+                    }
+                },
+                "argocd": {
+                    "type": "object",
+                    "properties": {
+                        "plaintext": { "type": "boolean", "description": "Pass --plaintext to the argocd CLI (argocd-server serves plain HTTP)." }
+                    }
+                },
                 "configOverrides": {
                     "type": "object",
                     "description": "Settings deep-merged over openclaw.json at every start (scripts/reconcile-openclaw-config.mjs). Objects merge, arrays and scalars are replaced; the keys are managed and a UI edit to them is reverted at the next restart."
@@ -127,6 +158,14 @@
                         "k8sArgocdAuthToken": {
                             "type": "string",
                             "description": "Token (K8S_ARGOCD_AUTH_TOKEN) for a dedicated ArgoCD local account, scoped via argocd-rbac-cm to get+sync on the cluster-addons project. Used by cluster_status/cluster_diff/cluster_sync to talk to argocd-server directly (not --core mode). See k8s-infra/openclaw-plugin/README.md."
+                        },
+                        "alertSmtpPassword": {
+                            "type": "string",
+                            "description": "Gmail app password (ALERT_SMTP_PASSWORD) for the SMTP alert fallback. Used only when gog fails."
+                        },
+                        "cloudflareEmailApiToken": {
+                            "type": "string",
+                            "description": "Cloudflare API token (CLOUDFLARE_EMAIL_API_TOKEN) limited to Email Sending: Write, for the Cloudflare alert fallback. Never a global token."
                         }
                     }
                 },

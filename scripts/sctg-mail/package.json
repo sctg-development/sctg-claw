@@ -7,16 +7,22 @@
   "author": "Ronan LE MEILLAT",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "files": ["dist", "skills", "openclaw.plugin.json"],
+  "files": [
+    "dist",
+    "skills",
+    "openclaw.plugin.json"
+  ],
   "scripts": {
     "build": "tsc",
     "test": "node --test mail.test.ts"
   },
   "dependencies": {
+    "nodemailer": "10.5.0",
     "typebox": "1.3.17"
   },
   "devDependencies": {
     "@types/node": "^22.20.3",
+    "@types/nodemailer": "8.0.2",
     "openclaw": ">=2026.8.2",
     "typescript": "^5.9.0"
   },
@@ -24,8 +30,16 @@
     "openclaw": ">=2026.8.2"
   },
   "openclaw": {
-    "extensions": ["./dist/index.js"],
-    "compat": { "pluginApi": ">=2026.8.2", "minGatewayVersion": "2026.8.2" },
-    "build": { "openclawVersion": "2026.8.2", "pluginSdkVersion": "2026.8.2" }
+    "extensions": [
+      "./dist/index.js"
+    ],
+    "compat": {
+      "pluginApi": ">=2026.8.2",
+      "minGatewayVersion": "2026.8.2"
+    },
+    "build": {
+      "openclawVersion": "2026.8.2",
+      "pluginSdkVersion": "2026.8.2"
+    }
   }
 }

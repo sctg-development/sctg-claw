@@ -28,6 +28,14 @@ Automations used to say "run `GOG_KEYRING_PASSWORD="" gog --account ... gmail se
 call. That recipe was fragile: spaces after commas in `--to` split the argument, and a typographic
 dash (`—body-html-file`) is not a flag.
 
+## Fallback channels
+
+If gog fails (typically an expired Google token), the tool tries SMTP Gmail and then Cloudflare Email Sending, when
+they are configured, and only for recipients on the operator's `ALERT_FALLBACK_RECIPIENTS` list. The result then has
+`degraded: true` and a `transport` other than `gog`. Treat that as an incident: the message got through, but the
+main channel is broken. Say so in your report instead of presenting it as a normal send. The message itself starts
+with a notice saying that gog failed.
+
 ## When it fails
 
 The result has `ok: false` and an `error`. If the error mentions an expired or revoked Google

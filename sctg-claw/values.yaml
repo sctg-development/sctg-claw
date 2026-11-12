@@ -66,6 +66,28 @@ openclaw:
   #             defaultAccount: sender@example.org
   #             allowedAccounts: [sender@example.org]
   configOverrides: {}
+  # E-mail alerts: the delivery path is gog (Gmail API), then SMTP Gmail, then Cloudflare Email Sending.
+  # The two fallbacks only ever send to `fallbackRecipients`, and every fallback message says that gog
+  # failed. A fallback is disabled until its group is complete (see secret.alertSmtpPassword and
+  # secret.cloudflareEmailApiToken for the credentials).
+  alert:
+    # Comma-separated allow-list for the fallbacks. Empty disables them.
+    fallbackRecipients: ""
+    # Default sender account for the sctg-mail command line (SCTG_MAIL_ACCOUNT).
+    account: ""
+    smtp:
+      host: smtp.gmail.com
+      port: 587
+      user: ""   # Gmail account that owns the app password
+      from: ""   # defaults to user (Gmail rewrites From to the authenticated account)
+    cloudflare:
+      accountId: ""
+      from: ""   # on a domain of the Cloudflare account, e.g. alerts@alerts.example.org
+      fromName: ""
+  # k8s-ops talks to argocd-server. If argocd-server serves plain HTTP (configs.params server.insecure: true),
+  # the argocd CLI needs --plaintext: set this to true. (--insecure only skips certificate verification.)
+  argocd:
+    plaintext: false
   tailnet:
     enabled: false
     authKey: ""
@@ -160,6 +182,12 @@ openclaw:
     # Application manages). See k8s-infra/openclaw-plugin/README.md for how
     # to create this account and mint its token.
     k8sArgocdAuthToken: ""
+    # Alert delivery fallbacks (scripts/sctg-mail), used only when gog (Google OAuth) fails. Put these in
+    # your private encrypted values, never in a public chart. Gmail app password for alert.smtp.user
+    # (needs 2-Step Verification, and the app password must be allowed by the domain admin):
+    alertSmtpPassword: ""
+    # Cloudflare API token restricted to the "Email Sending: Write" account permission. NOT a global token.
+    cloudflareEmailApiToken: ""
   # This map is rendered as /home/node/.openclaw/openclaw.json.
   # Add any supported OpenClaw configuration section here. Use SecretRef objects
   # for sensitive values, for example: { source: env, provider: default, id: TOKEN }.

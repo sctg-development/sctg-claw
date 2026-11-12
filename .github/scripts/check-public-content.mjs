@@ -15,7 +15,8 @@ const SKIP_FILES = new Set(["package-lock.json"]);
 const MAX_BYTES = 1024 * 1024;
 
 // Domains that are placeholders in docs and test fixtures, not real mailboxes.
-const PLACEHOLDER_EMAIL = /@(example\.(org|com|net)|x\.org|y\.org|z\.org|users\.noreply\.github\.com)$|^noreply@|^git@github\.com$/i;
+// example.org/.com/.net and every subdomain of them are reserved by the IANA (RFC 2606).
+const PLACEHOLDER_EMAIL = /@(([a-z0-9-]+\.)*example\.(org|com|net)|x\.org|y\.org|z\.org|users\.noreply\.github\.com)$|^noreply@|^git@github\.com$/i;
 
 const SECRET_RULES = [
   ["anthropic-token", /sk-ant-[A-Za-z0-9_-]{8,}/],
