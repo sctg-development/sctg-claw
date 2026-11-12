@@ -73,6 +73,26 @@
                         }
                     }
                 },
+                "k8sOps": {
+                    "type": "object",
+                    "description": "k8s-ops cluster access without a static kubeconfig: a kubeconfig generated from the pod's ServiceAccount token, plus an optional read-only ClusterRole.",
+                    "properties": {
+                        "inCluster": {
+                            "type": "object",
+                            "properties": {
+                                "enabled": { "type": "boolean" },
+                                "server": { "type": "string" },
+                                "rbac": {
+                                    "type": "object",
+                                    "properties": {
+                                        "create": { "type": "boolean" },
+                                        "clusterRoleName": { "type": "string" }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
                 "argocd": {
                     "type": "object",
                     "properties": {

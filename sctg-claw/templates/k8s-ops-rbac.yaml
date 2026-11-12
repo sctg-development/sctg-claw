@@ -1,0 +1,41 @@
+{{- if .Values.openclaw.k8sOps.inCluster.enabled }}
+{{- if .Values.openclaw.secret.k8sInfraKubeconfig }}
+{{- fail "openclaw.k8sOps.inCluster.enabled generates the kubeconfig from the pod's ServiceAccount: do not also set openclaw.secret.k8sInfraKubeconfig" }}
+{{- end }}
+{{- $role := .Values.openclaw.k8sOps.inCluster.rbac.clusterRoleName }}
+{{- if and .Values.openclaw.k8sOps.inCluster.rbac.create (not $role) }}
+# Read-only view for the k8s-ops monitoring (cluster_health). Deliberately NO pods/exec and no secrets: the
+# etcd snapshot tool (cluster_backup) needs exec and stays unavailable unless you bind a role that has it
+# through rbac.clusterRoleName.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "claw.fullname" . }}-k8s-ops-readonly
+  labels:
+    {{- include "claw.labels" . | nindent 4 }}
+rules:
+  - apiGroups: [""]
+    resources: ["nodes", "pods"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["longhorn.io"]
+    resources: ["volumes"]
+    verbs: ["get", "list"]
+---
+{{- end }}
+{{- if or .Values.openclaw.k8sOps.inCluster.rbac.create $role }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "claw.fullname" . }}-k8s-ops
+  labels:
+    {{- include "claw.labels" . | nindent 4 }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "claw.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ if $role }}{{ $role }}{{ else }}{{ include "claw.fullname" . }}-k8s-ops-readonly{{ end }}
+{{- end }}
+{{- end }}

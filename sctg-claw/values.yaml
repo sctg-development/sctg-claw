@@ -88,6 +88,20 @@ openclaw:
   # the argocd CLI needs --plaintext: set this to true. (--insecure only skips certificate verification.)
   argocd:
     plaintext: false
+  # k8s-ops cluster access WITHOUT a static kubeconfig secret. With inCluster.enabled the chart generates a
+  # kubeconfig that uses this pod's own ServiceAccount token (rotated by Kubernetes, nothing to store in
+  # SOPS) and, unless rbac.clusterRoleName points to an existing role, creates a READ-ONLY ClusterRole
+  # (nodes, pods, longhorn volumes) bound to the pod's ServiceAccount. It has no pods/exec, so the etcd
+  # snapshot tool (cluster_backup) stays unavailable; bind a role that includes exec to enable it.
+  # Every process in the pod can read the ServiceAccount token, exactly as it could read a kubeconfig file.
+  # Do not also set secret.k8sInfraKubeconfig (the chart refuses to render if both are set).
+  k8sOps:
+    inCluster:
+      enabled: false
+      server: ""   # defaults to https://kubernetes.default.svc
+      rbac:
+        create: true
+        clusterRoleName: ""   # bind this existing ClusterRole instead of creating the read-only one
   tailnet:
     enabled: false
     authKey: ""

@@ -68,3 +68,36 @@ Usage: {{ include "claw.providerApiKeyEnv" (dict "envName" "MISTRAL" "raw" .) }}
 {{- define "claw.mobileAuthBrokerPVCName" -}}
 {{- default (printf "%s-mobile-auth-broker" (include "claw.fullname" .)) .Values.mobileAuthBroker.persistence.existingClaim }}
 {{- end -}}
+
+{{/* Name of the ServiceAccount the claw pod runs as (same rule as the Deployment). */}}
+{{- define "claw.serviceAccountName" -}}
+{{- if .Values.serviceAccount.create -}}
+{{- default (include "claw.fullname" .) .Values.serviceAccount.name -}}
+{{- else -}}
+{{- required "serviceAccount.name must be set when serviceAccount.create is false" .Values.serviceAccount.name -}}
+{{- end -}}
+{{- end }}
+
+{{/*
+kubeconfig that authenticates with the pod's own ServiceAccount token (tokenFile is re-read, so Kubernetes'
+automatic rotation just works). It contains NO secret: only paths and the API server address.
+*/}}
+{{- define "claw.k8sOpsKubeconfig" -}}
+apiVersion: v1
+kind: Config
+clusters:
+  - name: in-cluster
+    cluster:
+      server: {{ .Values.openclaw.k8sOps.inCluster.server | default "https://kubernetes.default.svc" }}
+      certificate-authority: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+users:
+  - name: claw-k8s-ops
+    user:
+      tokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+contexts:
+  - name: in-cluster
+    context:
+      cluster: in-cluster
+      user: claw-k8s-ops
+current-context: in-cluster
+{{- end }}

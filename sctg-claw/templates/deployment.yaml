@@ -176,6 +176,11 @@ spec:
             - name: ARGOCD_OPTS
               value: "--plaintext"
             {{- end }}
+            {{- if .Values.openclaw.k8sOps.inCluster.enabled }}
+            # Written to ~/.kube/config at start by scripts/resolve-k8s-infra-secrets.mjs. No secret inside.
+            - name: K8S_INFRA_KUBECONFIG
+              value: {{ include "claw.k8sOpsKubeconfig" . | quote }}
+            {{- end }}
           {{- if include "claw.openclawSecretName" . }}
           envFrom:
             - secretRef:
