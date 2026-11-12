@@ -48,6 +48,10 @@
                     "type": "string",
                     "description": "Password for the gogcli keyring (GOG_KEYRING_PASSWORD). Required for gogcli to access the encrypted keyring."
                 },
+                "configOverrides": {
+                    "type": "object",
+                    "description": "Settings deep-merged over openclaw.json at every start (scripts/reconcile-openclaw-config.mjs). Objects merge, arrays and scalars are replaced; the keys are managed and a UI edit to them is reverted at the next restart."
+                },
                 "existingSecret": {
                     "type": "string"
                 },

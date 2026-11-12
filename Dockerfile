@@ -676,6 +676,11 @@ COPY --from=sctg-scripts --chown=node:node provision-claude-accounts.mjs ./scrip
 # Periodic vault refresh run by cirond (see scripts/keypool-refresh.mjs and scripts/ciron.toml).
 COPY --from=sctg-scripts --chown=node:node keypool-refresh.mjs ./scripts/keypool-refresh.mjs
 
+# openclaw.json reconciler (see scripts/reconcile-openclaw-config.mjs): at every start, replaces model ids the
+# vendor retired, keeps the image's provider wildcards in an active allow-list, and merges the operator's
+# `openclaw.configOverrides` chart value, because the chart only seeds the file on first boot.
+COPY --from=sctg-scripts --chown=node:node reconcile-openclaw-config.mjs ./scripts/reconcile-openclaw-config.mjs
+
 # OpenRouter free-model populator (see scripts/populate-openrouter-free-models.mjs):
 # independent of the openclaw package, it queries OpenRouter's live catalog
 # with OPENROUTER_API_KEYS/OPENROUTER_API_KEY and writes every ":free" model
@@ -826,6 +831,8 @@ ENTRYPOINT ["tini", "-s", "--", "node", "/app/docker-entrypoint.mjs"]
 # OPENROUTER_API_KEYS the vault resolver (or a plain env var) exported, and
 # before /home/node/.openclaw/openclaw.json is read by the gateway below --
 # see scripts/populate-openrouter-free-models.mjs.
+# reconcile-openclaw-config.mjs runs after the OpenRouter populator and before doctor, so doctor
+# validates the reconciled file; it never blocks startup.
 # `doctor --fix --non-interactive` repairs/migrates state on the retained PVC
 # after an image upgrade (what upstream's entrypoint does for a plain gateway
 # CMD); `;` so a repair hiccup is logged but never blocks startup.
@@ -840,4 +847,4 @@ ENTRYPOINT ["tini", "-s", "--", "node", "/app/docker-entrypoint.mjs"]
 # in /etc/ciron/ciron.toml (see scripts/ciron.toml) and supervised by cirond,
 # which restarts any of them if they die. `exec` replaces this shell with
 # cirond so tini manages it directly as the container's main process.
-CMD ["sh", "-c", "umask 077; eval \"$(node scripts/resolve-keypool-vault.mjs)\"; node scripts/populate-openrouter-free-models.mjs; node scripts/resolve-k8s-infra-secrets.mjs; node openclaw.mjs doctor --fix --non-interactive; node scripts/provision-claude-accounts.mjs; openclaw plugins install /opt/openclaw-coach --force --accept-capabilities; openclaw plugins install /opt/k8s-ops --force --accept-capabilities; openclaw plugins install /opt/sctg-mail --force --accept-capabilities; exec /usr/sbin/cirond -c /etc/ciron/ciron.toml"]
+CMD ["sh", "-c", "umask 077; eval \"$(node scripts/resolve-keypool-vault.mjs)\"; node scripts/populate-openrouter-free-models.mjs; node scripts/reconcile-openclaw-config.mjs; node scripts/resolve-k8s-infra-secrets.mjs; node openclaw.mjs doctor --fix --non-interactive; node scripts/provision-claude-accounts.mjs; openclaw plugins install /opt/openclaw-coach --force --accept-capabilities; openclaw plugins install /opt/k8s-ops --force --accept-capabilities; openclaw plugins install /opt/sctg-mail --force --accept-capabilities; exec /usr/sbin/cirond -c /etc/ciron/ciron.toml"]

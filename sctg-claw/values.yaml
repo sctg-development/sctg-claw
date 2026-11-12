@@ -54,6 +54,18 @@ service:
 #   --from-literal=VIBE_API_KEYS='vibe-api-key-1,vibe-api-key-2'
 openclaw:
   gogKeyringPassword: ""
+  # Settings merged over ~/.openclaw/openclaw.json at EVERY start (scripts/reconcile-openclaw-config.mjs).
+  # `config:` below is only seeded on first boot; use this for what must reach an existing volume.
+  # Objects merge, arrays and scalars are replaced, and these keys are managed: a UI edit to them is
+  # reverted at the next restart. Do not put secrets here (use SecretRef objects). Example:
+  #   configOverrides:
+  #     plugins:
+  #       entries:
+  #         sctg-mail:
+  #           config:
+  #             defaultAccount: sender@example.org
+  #             allowedAccounts: [sender@example.org]
+  configOverrides: {}
   tailnet:
     enabled: false
     authKey: ""

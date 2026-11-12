@@ -132,6 +132,10 @@ spec:
             {{- end }}
             - name: GOG_KEYRING_PASSWORD
               value: {{ .Values.openclaw.gogKeyringPassword | quote }}
+            {{- with .Values.openclaw.configOverrides }}
+            - name: OPENCLAW_CONFIG_OVERRIDES
+              value: {{ toJson . | quote }}
+            {{- end }}
           {{- if include "claw.openclawSecretName" . }}
           envFrom:
             - secretRef:
