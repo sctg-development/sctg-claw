@@ -804,6 +804,12 @@ COPY --from=sctg-scripts --chown=node:node resolve-k8s-infra-secrets.mjs ./scrip
 # Verify the shipped toolchain needs no privileged writes or first-run downloads.
 RUN COREPACK_ENABLE_NETWORK=0 PNPM_CONFIG_OFFLINE=true pnpm --version
 
+# Docker runtime
+RUN curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /etc/apt/trusted.gpg.d/docker.gpg \
+      && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/trusted.gpg.d/docker.gpg] https://download.docker.com/linux/debian bookworm stable" | tee /etc/apt/sources.list.d/docker.list \
+      && apt-get update \
+      && apt-get install -y docker-ce docker-ce-cli containerd.io
+      
 # Start gateway server with default config.
 # Binds to loopback (127.0.0.1) by default for security.
 #
