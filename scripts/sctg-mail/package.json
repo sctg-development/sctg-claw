@@ -14,7 +14,7 @@
   ],
   "scripts": {
     "build": "tsc",
-    "test": "node --test mail.test.ts"
+    "test": "node --test mail.test.ts transports.test.ts inline-images.test.ts"
   },
   "dependencies": {
     "nodemailer": "10.5.0",

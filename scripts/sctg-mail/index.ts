@@ -1,6 +1,7 @@
 import { Type } from "typebox";
 import { definePluginEntry } from "openclaw/plugin-sdk/plugin-entry";
 import { makeGogSender } from "./gog-send.js";
+import { defaultImageRoots, withLoadedImages } from "./inline-images.js";
 import { validateMail, type MailConfig } from "./mail.js";
 import { fallbackConfigFromEnv, nodemailerSmtpSend, sendWithFallback } from "./transports.js";
 
@@ -23,7 +24,7 @@ export default definePluginEntry({
         "Sends one email through Gmail using the gog CLI. Send-only: it cannot read or search mail. " +
         "Use this instead of running `gog gmail send` by hand. Provide `to` (several addresses allowed), " +
         "`subject`, and `bodyHtml` and/or `bodyText`. The sender is the configured default account unless " +
-        "`account` names another allow-listed one. Returns ok:false with an explanation on failure, " +
+        "`account` names another allow-listed one. For charts or logos pass `inlineImages` ([{cid, path}]) and reference each as <img src=\"cid:CID\"> in bodyHtml. Returns ok:false with an explanation on failure, " +
         "including the case where Google has expired the account's token.",
       parameters: Type.Object(
         {
@@ -34,6 +35,12 @@ export default definePluginEntry({
           bodyHtml: Type.Optional(Type.String({ description: "HTML body." })),
           bodyText: Type.Optional(Type.String({ description: "Plain-text body (used alone or as the text alternative)." })),
           account: Type.Optional(Type.String({ description: "Sender account; must be allow-listed. Defaults to the configured one." })),
+          inlineImages: Type.Optional(
+            Type.Array(
+              Type.Object({ cid: Type.String({ description: "Content id, referenced in bodyHtml as <img src=\"cid:CID\">." }), path: Type.String({ description: "PNG or JPEG file path, from an allowed folder (e.g. returned by coach_briefing_charts)." }) }, { additionalProperties: false }),
+              { maxItems: 8, description: "Images shown inside bodyHtml. Each must be referenced there as src=\"cid:CID\"." },
+            ),
+          ),
           dryRun: Type.Optional(Type.Boolean({ description: "Validate and print what would be sent, without sending." })),
         },
         { additionalProperties: false },
@@ -50,7 +57,14 @@ export default definePluginEntry({
             details: { ok: false, error: validation.error },
           };
         }
-        const { mail } = validation;
+        const loaded = await withLoadedImages(validation.mail, cfg.inlineImageRoots?.length ? cfg.inlineImageRoots : defaultImageRoots());
+        if (!loaded.ok) {
+          return {
+            content: [{ type: "text", text: `send_email refused: ${loaded.error}` }],
+            details: { ok: false, error: loaded.error },
+          };
+        }
+        const { mail } = loaded;
         const recipients = mail.to.length + mail.cc.length + mail.bcc.length;
         const result = await sendWithFallback(mail, fallbackConfigFromEnv(process.env), {
           sendViaGog,

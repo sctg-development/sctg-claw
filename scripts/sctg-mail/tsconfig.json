@@ -20,6 +20,8 @@
     "mail.ts",
     "transports.ts",
     "gog-send.ts",
+    "inline-images.ts",
+    "raw-message.ts",
     "cli.ts"
   ]
 }

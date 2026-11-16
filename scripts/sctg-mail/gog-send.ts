@@ -4,6 +4,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { buildGogArgs, explainGogFailure, type ValidatedMail } from "./mail.js";
+import { buildRawMessage } from "./raw-message.js";
 
 const SEND_TIMEOUT_MS = 60_000;
 const MAX_BUFFER_BYTES = 1024 * 1024;
@@ -31,12 +32,15 @@ export function makeGogSender(options: { gogBinary: string; env: NodeJS.ProcessE
     let dir: string | undefined;
     try {
       dir = await mkdtemp(path.join(tmpdir(), "sctg-mail-"));
-      const files: { htmlFile?: string; textFile?: string } = {};
-      if (mail.bodyHtml) {
+      const files: { htmlFile?: string; textFile?: string; rawFile?: string } = {};
+      if (mail.images.length > 0) {
+        files.rawFile = path.join(dir, "message.eml");
+        await writeFile(files.rawFile, await buildRawMessage(mail, mail.account), { mode: 0o600 });
+      } else if (mail.bodyHtml) {
         files.htmlFile = path.join(dir, "body.html");
         await writeFile(files.htmlFile, mail.bodyHtml, { mode: 0o600 });
       }
-      if (mail.bodyText) {
+      if (mail.bodyText && !files.rawFile) {
         files.textFile = path.join(dir, "body.txt");
         await writeFile(files.textFile, mail.bodyText, { mode: 0o600 });
       }

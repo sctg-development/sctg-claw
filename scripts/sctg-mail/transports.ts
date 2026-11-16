@@ -9,7 +9,7 @@
 // addresses. A fallback message states that the main channel failed, so a broken token stays visible.
 // Secrets (SMTP password, Cloudflare token) come from the environment only and never reach a log, an
 // error message, or a result.
-import type { ValidatedMail } from "./mail.js";
+import type { LoadedImage, ValidatedMail } from "./mail.js";
 
 export type TransportName = "gog" | "smtp" | "cloudflare";
 
@@ -73,6 +73,15 @@ export function recipientsAllowed(mail: ValidatedMail, allowed: string[]): boole
   return [...mail.to, ...mail.cc, ...mail.bcc].every((r) => set.has(r.toLowerCase()));
 }
 
+/** Replaces <img src="cid:..."> by its alt text, for channels that cannot carry inline images. */
+export function stripCidImages(html: string): string {
+  return html.replace(/<img\b[^>]*\bsrc\s*=\s*["']cid:[^"']*["'][^>]*>/gi, (tag) => {
+    const alt = /\balt\s*=\s*"([^"]*)"|\balt\s*=\s*'([^']*)'/i.exec(tag);
+    const text = alt?.[1] ?? alt?.[2] ?? "";
+    return text ? `<span style="color:#6b7280;font-size:90%">[${text}]</span>` : "";
+  });
+}
+
 const escapeHtml = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
 /** Pure: the notice added to a message delivered by a fallback. */
@@ -99,6 +108,8 @@ export type SmtpMessage = {
   subject: string;
   html?: string;
   text?: string;
+  /** Images shown inside the HTML (Content-ID). */
+  inlineImages?: LoadedImage[];
 };
 
 export type Deps = {
@@ -133,7 +144,8 @@ async function viaCloudflare(
     subject: mail.subject,
     ...(mail.cc.length ? { cc: mail.cc } : {}),
     ...(mail.bcc.length ? { bcc: mail.bcc } : {}),
-    ...(body.html ? { html: body.html } : {}),
+    // This channel is not given the images: inline references would show as broken pictures.
+    ...(body.html ? { html: mail.images.length ? stripCidImages(body.html) : body.html } : {}),
     ...(body.text ? { text: body.text } : {}),
   };
   const response = await doFetch(
@@ -201,6 +213,7 @@ export async function sendWithFallback(
           bcc: mail.bcc,
           subject: mail.subject,
           ...notice,
+          ...(mail.images.length ? { inlineImages: mail.images } : {}),
         });
         attempts.push({ transport, ok: true });
         return { ok: true, transport, attempts, degraded: true };
@@ -243,7 +256,11 @@ export async function nodemailerSmtpSend(
     socketTimeout: 30_000,
   });
   try {
-    await transporter.sendMail(message);
+    const { inlineImages, ...rest } = message;
+    await transporter.sendMail({
+      ...rest,
+      attachments: inlineImages?.map((image) => ({ filename: image.filename, content: image.content, contentType: image.contentType, cid: image.cid, contentDisposition: "inline" as const })),
+    });
   } finally {
     transporter.close();
   }

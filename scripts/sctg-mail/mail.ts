@@ -7,7 +7,13 @@ export type MailConfig = {
   allowedAccounts?: string[];
   maxRecipients?: number;
   requireApproval?: boolean;
+  /** Folders inline images may be read from. Defaults to the coach plugin's charts folder. */
+  inlineImageRoots?: string[];
 };
+
+/** An image to show inside the HTML body as <img src="cid:CID">. */
+export type InlineImage = { cid: string; path: string };
+export type LoadedImage = { cid: string; filename: string; contentType: "image/png" | "image/jpeg"; content: Buffer };
 
 export type SendEmailInput = {
   to: string | string[];
@@ -18,9 +24,12 @@ export type SendEmailInput = {
   bodyText?: string;
   account?: string;
   dryRun?: boolean;
+  inlineImages?: InlineImage[];
 };
 
 export const DEFAULT_MAX_RECIPIENTS = 20;
+export const MAX_INLINE_IMAGES = 8;
+export const CID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
 const MAX_SUBJECT_LENGTH = 300;
 const MAX_BODY_BYTES = 2 * 1024 * 1024;
 // Deliberately conservative: no display names, no quoting, no comments. gog gets
@@ -48,7 +57,32 @@ export type ValidatedMail = {
   bodyHtml?: string;
   bodyText?: string;
   dryRun: boolean;
+  /** Requested inline images (paths); loaded into `images` by withLoadedImages. */
+  inlineImages: InlineImage[];
+  images: LoadedImage[];
 };
+
+/** Shape checks only (no file access): safe to run inside the pure validation step. */
+export function validateInlineRequests(value: unknown, bodyHtml: string | undefined): { ok: true; images: InlineImage[] } | { ok: false; error: string } {
+  if (value === undefined) return { ok: true, images: [] };
+  if (!Array.isArray(value)) return { ok: false, error: "inlineImages must be an array of { cid, path }" };
+  if (value.length > MAX_INLINE_IMAGES) return { ok: false, error: `too many inline images (max ${MAX_INLINE_IMAGES})` };
+  if (value.length > 0 && !bodyHtml) return { ok: false, error: "inlineImages need bodyHtml" };
+  const seen = new Set<string>();
+  const images: InlineImage[] = [];
+  for (const item of value as Array<{ cid?: unknown; path?: unknown }>) {
+    const cid = typeof item?.cid === "string" ? item.cid : "";
+    const file = typeof item?.path === "string" ? item.path : "";
+    if (!CID.test(cid)) return { ok: false, error: `invalid inline image cid ${JSON.stringify(cid)} (letters, digits, . _ -; max 64)` };
+    if (seen.has(cid)) return { ok: false, error: `duplicate inline image cid ${JSON.stringify(cid)}` };
+    if (!file || file.includes("\0") || !/\.(png|jpe?g)$/i.test(file)) return { ok: false, error: `inline image ${cid}: path must be a .png or .jpg file` };
+    if (!bodyHtml?.includes(`cid:${cid}`)) return { ok: false, error: `inline image ${cid} is not referenced in bodyHtml (expected src="cid:${cid}")` };
+    seen.add(cid);
+    images.push({ cid, path: file });
+  }
+  return { ok: true, images };
+}
+
 
 export type Validation = { ok: true; mail: ValidatedMail } | { ok: false; error: string };
 
@@ -104,9 +138,14 @@ export function validateMail(input: SendEmailInput, config: MailConfig): Validat
     }
   }
 
+  const inline = validateInlineRequests(input.inlineImages, bodyHtml);
+  if (!inline.ok) {
+    return { ok: false, error: inline.error };
+  }
+
   return {
     ok: true,
-    mail: { account, to, cc, bcc, subject, bodyHtml, bodyText, dryRun: input.dryRun === true },
+    mail: { account, to, cc, bcc, subject, bodyHtml, bodyText, dryRun: input.dryRun === true, inlineImages: inline.images, images: [] },
   };
 }
 
@@ -117,7 +156,7 @@ export function validateMail(input: SendEmailInput, config: MailConfig): Validat
  */
 export function buildGogArgs(
   mail: ValidatedMail,
-  files: { htmlFile?: string; textFile?: string },
+  files: { htmlFile?: string; textFile?: string; rawFile?: string },
 ): string[] {
   const args = [
     "--account",
@@ -128,11 +167,13 @@ export function buildGogArgs(
     ...(mail.dryRun ? ["--dry-run"] : []),
     "gmail",
     "send",
-    "--to",
-    mail.to.join(","),
-    "--subject",
-    mail.subject,
   ];
+  if (files.rawFile) {
+    // The complete message (headers, recipients, inline images) is in the file; gog refuses to mix it with compose flags.
+    args.push("--raw-file", files.rawFile);
+    return args;
+  }
+  args.push("--to", mail.to.join(","), "--subject", mail.subject);
   if (mail.cc.length > 0) {
     args.push("--cc", mail.cc.join(","));
   }

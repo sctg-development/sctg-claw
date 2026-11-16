@@ -31,6 +31,11 @@
         "minimum": 1,
         "description": "Maximum total recipients (to+cc+bcc) per call. Defaults to 20."
       },
+      "inlineImageRoots": {
+        "type": "array",
+        "items": { "type": "string" },
+        "description": "Folders send_email may read inline images (PNG/JPEG) from. Defaults to ~/.openclaw/coach/charts, where the coach plugin writes its charts."
+      },
       "requireApproval": {
         "type": "boolean",
         "description": "Ask the operator to approve every send. Defaults to false so scheduled automations can send unattended."

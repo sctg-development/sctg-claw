@@ -3,12 +3,13 @@
 // fallbacks), for shell scripts and other plugins:
 //
 //   node /opt/sctg-mail/dist/cli.js send --to a@x.org,b@x.org --subject "..." \
-//        [--account sender@x.org] [--html-file F|-] [--text-file F|-] [--dry-run]
+//        [--account sender@x.org] [--html-file F|-] [--text-file F|-] [--inline CID=FILE]... [--dry-run]
 //
 // `-` reads the body from stdin. The sender defaults to $SCTG_MAIL_ACCOUNT. Exit codes: 0 delivered
 // (possibly by a fallback: the line on stderr says so), 1 not delivered, 2 usage or validation error.
 import { readFileSync } from "node:fs";
 import { makeGogSender } from "./gog-send.js";
+import { defaultImageRoots, withLoadedImages } from "./inline-images.js";
 import { validateMail } from "./mail.js";
 import { fallbackConfigFromEnv, nodemailerSmtpSend, sendWithFallback } from "./transports.js";
 
@@ -17,11 +18,12 @@ const flag = (name: string) => {
   const i = argv.indexOf(`--${name}`);
   return i === -1 ? undefined : argv[i + 1];
 };
+const flags = (name: string) => argv.flatMap((value, i) => (value === `--${name}` && argv[i + 1] !== undefined ? [argv[i + 1]] : []));
 const read = (source: string | undefined) => (source ? readFileSync(source === "-" ? 0 : source, "utf8") : undefined);
 
 async function main(): Promise<number> {
   if (argv[0] !== "send" || !flag("to") || !flag("subject")) {
-    console.error("usage: cli.js send --to <a,b> --subject <s> [--account <a>] [--html-file F|-] [--text-file F|-] [--dry-run]");
+    console.error("usage: cli.js send --to <a,b> --subject <s> [--account <a>] [--html-file F|-] [--text-file F|-] [--inline CID=FILE]... [--dry-run]");
     return 2;
   }
   const account = flag("account") ?? process.env.SCTG_MAIL_ACCOUNT;
@@ -33,6 +35,7 @@ async function main(): Promise<number> {
       bodyText: read(flag("text-file")),
       account,
       dryRun: argv.includes("--dry-run"),
+      inlineImages: flags("inline").map((spec) => ({ cid: spec.slice(0, Math.max(spec.indexOf("="), 0)), path: spec.slice(spec.indexOf("=") + 1) })),
     },
     { defaultAccount: account, allowedAccounts: account ? [account] : [], maxRecipients: 20 },
   );
@@ -40,7 +43,12 @@ async function main(): Promise<number> {
     console.error(`sctg-mail: refused: ${validation.error}`);
     return 2;
   }
-  const result = await sendWithFallback(validation.mail, fallbackConfigFromEnv(process.env), {
+  const loaded = await withLoadedImages(validation.mail, defaultImageRoots());
+  if (!loaded.ok) {
+    console.error(`sctg-mail: refused: ${loaded.error}`);
+    return 2;
+  }
+  const result = await sendWithFallback(loaded.mail, fallbackConfigFromEnv(process.env), {
     sendViaGog: makeGogSender({ gogBinary: process.env.GOG_BIN || "gog", env: process.env }),
     smtpSend: nodemailerSmtpSend,
     fetch,

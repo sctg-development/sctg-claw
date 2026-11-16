@@ -19,6 +19,10 @@ and it is restricted to sending (it cannot read or search the mailbox).
   to a temporary file for you, so there is no need for `/tmp/...html` and no cleanup step.
 - `cc`, `bcc`: optional, same format as `to`.
 - `account`: optional sender. Omit it to use the configured default. Only allow-listed accounts work.
+- `inlineImages`: optional list of `{ cid, path }` for pictures shown inside the HTML (charts, logos). Each
+  `cid` must appear in `bodyHtml` as `<img src="cid:CID">`. Files must be `.png`/`.jpg` under an allowed folder
+  (default `~/.openclaw/coach/charts`, where the coach plugin's `coach_briefing_charts` writes), at most 8 images,
+  1.5 MB each. Always give the `<img>` an `alt` text.
 - `dryRun`: validate and show what would be sent, without sending.
 
 ## Replacing the old shell recipe
@@ -27,6 +31,13 @@ Automations used to say "run `GOG_KEYRING_PASSWORD="" gog --account ... gmail se
 --body-html-file /tmp/x.html && rm /tmp/x.html`". Replace that step with one `send_email`
 call. That recipe was fragile: spaces after commas in `--to` split the argument, and a typographic
 dash (`—body-html-file`) is not a flag.
+
+## Inline images
+
+With `inlineImages` the message is built as a complete MIME message (`multipart/related`) and handed to
+`gog gmail send --raw-file`, because gog has no flag to set a Content-ID. A message without images still goes
+through the normal flags. If gog is down and a fallback is used, SMTP carries the images; Cloudflare Email Sending
+does not, and the images are replaced by their alt text.
 
 ## Fallback channels
 
