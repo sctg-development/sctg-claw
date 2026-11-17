@@ -580,7 +580,7 @@ ARG WACLI_VERSION=0.16.0
 ARG KUBECTL_VERSION=1.31.2
 ARG ARGOCD_VERSION=2.13.2
 ARG KILOCODE_PREVIEW_DATE="2026-11-17T19-27-22Z"
-ARG KILOCODE_PREVIEW_VERSION="0.1.0"
+ARG KILOCODE_PREVIEW_VERSION="0.1.1"
 RUN --mount=type=cache,id=openclaw-bookworm-apt-cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,id=openclaw-bookworm-apt-lists,target=/var/lib/apt,sharing=locked \
     apt-get update && \
