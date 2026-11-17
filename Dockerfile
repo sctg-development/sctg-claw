@@ -579,7 +579,7 @@ ARG WACLI_VERSION=0.16.0
 # installed here, since no v1 tool needs it (see k8s-infra/openclaw-plugin).
 ARG KUBECTL_VERSION=1.31.2
 ARG ARGOCD_VERSION=2.13.2
-ARG KILOCODE_PREVIEW_DATE="2026-09-29T20-01-31Z"
+ARG KILOCODE_PREVIEW_DATE="2026-11-17T19-27-22Z"
 ARG KILOCODE_PREVIEW_VERSION="0.1.0"
 RUN --mount=type=cache,id=openclaw-bookworm-apt-cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,id=openclaw-bookworm-apt-lists,target=/var/lib/apt,sharing=locked \
