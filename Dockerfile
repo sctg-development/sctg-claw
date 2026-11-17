@@ -625,8 +625,16 @@ RUN --mount=type=cache,id=openclaw-bookworm-apt-cache,target=/var/cache/apt,shar
     curl -fsSL https://pkgs.tailscale.com/stable/debian/bookworm.tailscale-keyring.list | tee /etc/apt/sources.list.d/tailscale.list && \
     # Install Tailscale \
     apt-get update -y && apt-get install -y tailscale   
-    # Install KiloCode CLI \
-RUN /usr/local/bin/kilocode-download --cli --out-file /usr/local/bin/kilocode && \
+# Install KiloCode CLI from the same pinned preview as kilocode-download, without a GitHub API lookup.
+RUN case "${TARGETARCH}" in \
+      amd64) kilo_arch=x64 ;; \
+      arm64) kilo_arch=arm64 ;; \
+      *) echo "Unsupported architecture: ${TARGETARCH}" >&2; exit 1 ;; \
+    esac && \
+    curl -fsSL "https://github.com/TEA-ching/kilocode/releases/download/preview%2F${KILOCODE_PREVIEW_DATE}/keypool-code-cli-linux-${kilo_arch}.tar.gz" -o /tmp/kilocode-cli.tar.gz && \
+    tar -xzf /tmp/kilocode-cli.tar.gz -O ./kilo > /usr/local/bin/kilocode && \
+    rm /tmp/kilocode-cli.tar.gz && \
+    chmod +x /usr/local/bin/kilocode && \
     ln -svf /usr/local/bin/kilocode /usr/local/bin/kilo
 # install MinIO client (mc) for S3-compatible object storage access.
 RUN curl -L https://dl.min.io/aistor/mc/release/linux-$(dpkg --print-architecture)/mc > /usr/local/bin/mc && chmod +x /usr/local/bin/mc
