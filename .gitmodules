@@ -15,3 +15,6 @@
 	path = mistral-vibe
 	url = git@github.com:sctg-development/mistral-vibe.git
 	branch = multi
+[submodule "garmin-ts-client"]
+	path = garmin-ts-client
+	url = https://github.com/sctg-development/garmin-ts-client.git
