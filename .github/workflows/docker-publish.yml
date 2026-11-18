@@ -116,6 +116,8 @@ jobs:
             sctg-scripts=./scripts
           file: ./Dockerfile
           platforms: ${{ matrix.platform }}
+          secrets: |
+            gh_token=${{ secrets.GITHUB_TOKEN }}
           outputs: ${{ github.event_name != 'pull_request' && format('type=image,name={0}/{1},push-by-digest=true,name-canonical=true,push=true', env.REGISTRY, env.IMAGE_NAME) || 'type=cacheonly' }}
 
       - name: Export digest

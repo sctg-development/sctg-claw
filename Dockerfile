@@ -626,7 +626,11 @@ RUN --mount=type=cache,id=openclaw-bookworm-apt-cache,target=/var/cache/apt,shar
     # Install Tailscale \
     apt-get update -y && apt-get install -y tailscale   
     # Install KiloCode CLI \
-RUN /usr/local/bin/kilocode-download --cli --out-file /usr/local/bin/kilocode && \
+# The optional BuildKit secret gh_token lifts the GitHub API rate limit (60/h per shared
+# runner IP); it is exposed only to this command, never stored in a layer.
+RUN --mount=type=secret,id=gh_token,required=false \
+    if [ -s /run/secrets/gh_token ]; then export GITHUB_TOKEN="$(cat /run/secrets/gh_token)"; fi && \
+    /usr/local/bin/kilocode-download --cli --out-file /usr/local/bin/kilocode && \
     ln -svf /usr/local/bin/kilocode /usr/local/bin/kilo
 # install MinIO client (mc) for S3-compatible object storage access.
 RUN curl -L https://dl.min.io/aistor/mc/release/linux-$(dpkg --print-architecture)/mc > /usr/local/bin/mc && chmod +x /usr/local/bin/mc
