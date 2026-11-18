@@ -859,6 +859,9 @@ ENTRYPOINT ["tini", "-s", "--", "node", "/app/docker-entrypoint.mjs"]
 # build time, because /home/node/.openclaw is on the persistence PVC and a
 # build-time install would be invisible at runtime. `;` (not `&&`) so a
 # hiccup here never blocks the gateway from starting.
+# The coach is installed from the ClawHub marketplace (clawhub:@sctg/openclaw-coach,
+# latest published version); if that fails (offline, registry down) the copy built
+# from the submodule at /opt/openclaw-coach is installed instead.
 # The previous copy under extensions/coach is removed first: its native
 # node_modules files are hardlinked, and `plugins install --force` refuses to
 # replace them ("Refusing to move hardlinked file"), which silently left the
@@ -868,4 +871,4 @@ ENTRYPOINT ["tini", "-s", "--", "node", "/app/docker-entrypoint.mjs"]
 # in /etc/ciron/ciron.toml (see scripts/ciron.toml) and supervised by cirond,
 # which restarts any of them if they die. `exec` replaces this shell with
 # cirond so tini manages it directly as the container's main process.
-CMD ["sh", "-c", "umask 077; eval \"$(node scripts/resolve-keypool-vault.mjs)\"; node scripts/populate-openrouter-free-models.mjs; node scripts/reconcile-openclaw-config.mjs; node scripts/resolve-k8s-infra-secrets.mjs; node openclaw.mjs doctor --fix --non-interactive; node scripts/provision-claude-accounts.mjs; rm -rf /home/node/.openclaw/extensions/coach; openclaw plugins install /opt/openclaw-coach --force --accept-capabilities; openclaw plugins install /opt/k8s-ops --force --accept-capabilities; openclaw plugins install /opt/sctg-mail --force --accept-capabilities; exec /usr/sbin/cirond -c /etc/ciron/ciron.toml"]
+CMD ["sh", "-c", "umask 077; eval \"$(node scripts/resolve-keypool-vault.mjs)\"; node scripts/populate-openrouter-free-models.mjs; node scripts/reconcile-openclaw-config.mjs; node scripts/resolve-k8s-infra-secrets.mjs; node openclaw.mjs doctor --fix --non-interactive; node scripts/provision-claude-accounts.mjs; rm -rf /home/node/.openclaw/extensions/coach; openclaw plugins install clawhub:@sctg/openclaw-coach --force --accept-capabilities || openclaw plugins install /opt/openclaw-coach --force --accept-capabilities; openclaw plugins install /opt/k8s-ops --force --accept-capabilities; openclaw plugins install /opt/sctg-mail --force --accept-capabilities; exec /usr/sbin/cirond -c /etc/ciron/ciron.toml"]
