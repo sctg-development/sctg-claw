@@ -294,3 +294,13 @@ test("syncOne with a run id re-reports that run without dispatching anything", a
   assert.equal(outcome.result.status, "synced");
   assert.ok(!calls.some((c) => c.startsWith("POST")), "no dispatch");
 });
+
+test("tokenFor: a repository token beats the owner token, which beats the default", () => {
+  const env = { FORK_SYNC_GH_TOKEN: "default", FORK_SYNC_GH_TOKEN_TEA_CHING: "owner", FORK_SYNC_GH_TOKEN_TEA_CHING_OPENCLAW: "openclaw" };
+  assert.equal(tokenFor("TEA-ching/openclaw", env), "openclaw");
+  assert.equal(tokenFor("TEA-ching/kilocode", env), "owner");
+  assert.equal(tokenFor("sctg-development/mistral-vibe", env), "default");
+  // The chart renders the key `TEA-ching/kilocode` with the same rule: every non-alphanumeric becomes "_".
+  assert.equal(tokenFor("TEA-ching/kilocode", { FORK_SYNC_GH_TOKEN_TEA_CHING_KILOCODE: "k" }), "k");
+  assert.equal(tokenFor("sctg-development/mistral-vibe", { FORK_SYNC_GH_TOKEN_SCTG_DEVELOPMENT_MISTRAL_VIBE: "m" }), "m");
+});

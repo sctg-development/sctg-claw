@@ -22,16 +22,21 @@ Un jeton **fine-grained** (Settings → Developer settings → Fine-grained toke
 - une expiration (1 an) ; ajoutez la date à votre agenda.
 
 Ce jeton peut lancer des workflows, pas modifier du code. Un workflow ne s'exécute que depuis la branche par défaut.
-Un jeton fine-grained ne couvre **qu'un seul propriétaire** : créez-en un par propriétaire (par exemple un pour
-`TEA-ching`, un pour `sctg-development`). Un jeton classique `workflow` couvrirait tout, mais il est bien plus large :
-déconseillé.
+Un jeton fine-grained ne couvre **qu'un seul propriétaire**, et peut être limité à **un seul dépôt** (le plus sûr :
+un jeton par fork). Le jeton le plus précis gagne : `FORK_SYNC_GH_TOKEN_<PROPRIÉTAIRE>_<DÉPÔT>`, puis
+`FORK_SYNC_GH_TOKEN_<PROPRIÉTAIRE>`, puis `FORK_SYNC_GH_TOKEN`. Un jeton classique `workflow` couvrirait tout, mais
+il est bien plus large : déconseillé.
 
-Valeurs SOPS (sous `claw.openclaw.secret`) :
+Valeurs SOPS (sous `claw.openclaw.secret`) ; la clé est mise en majuscules et tout caractère non alphanumérique
+devient `_` :
 
 ```yaml
-forkSyncGithubToken: github_pat_...        # jeton par défaut -> FORK_SYNC_GH_TOKEN
-forkSyncGithubTokens:                      # un jeton par propriétaire, prioritaire sur le défaut
-  sctg-development: github_pat_...         # -> FORK_SYNC_GH_TOKEN_SCTG_DEVELOPMENT
+forkSyncGithubToken: github_pat_...            # défaut -> FORK_SYNC_GH_TOKEN
+forkSyncGithubTokens:                          # prioritaires sur le défaut
+  sctg-development/mistral-vibe: github_pat_...   # -> FORK_SYNC_GH_TOKEN_SCTG_DEVELOPMENT_MISTRAL_VIBE
+  TEA-ching/kilocode: github_pat_...              # -> FORK_SYNC_GH_TOKEN_TEA_CHING_KILOCODE
+  TEA-ching/openclaw: github_pat_...              # -> FORK_SYNC_GH_TOKEN_TEA_CHING_OPENCLAW
+  # une clé « propriétaire » seule (TEA-ching) reste acceptée : elle couvre tous les dépôts de ce propriétaire
 ```
 
 Un fork sans jeton utilisable reçoit son propre mail d'erreur ; les autres continuent.

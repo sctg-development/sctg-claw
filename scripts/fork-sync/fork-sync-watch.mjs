@@ -42,10 +42,16 @@ const clip = (s, n) => {
   return t.length > n ? `${t.slice(0, n - 1)}…` : t;
 };
 
-/** Pure: the token for a repo: FORK_SYNC_GH_TOKEN_<OWNER> first, then FORK_SYNC_GH_TOKEN. */
+/**
+ * Pure: the token for a repo. The most specific wins: FORK_SYNC_GH_TOKEN_<OWNER>_<REPO> (a fine-grained token
+ * limited to that one repository), then FORK_SYNC_GH_TOKEN_<OWNER>, then FORK_SYNC_GH_TOKEN. Owner and
+ * repository are upper-cased and every other character becomes "_", the same rule the chart applies to the
+ * keys of `forkSyncGithubTokens` (so the key `TEA-ching/kilocode` becomes FORK_SYNC_GH_TOKEN_TEA_CHING_KILOCODE).
+ */
 export function tokenFor(repo, env) {
-  const owner = repo.split("/")[0].toUpperCase().replace(/[^A-Z0-9]/g, "_");
-  return env[`FORK_SYNC_GH_TOKEN_${owner}`] || env.FORK_SYNC_GH_TOKEN || undefined;
+  const name = (part) => part.toUpperCase().replace(/[^A-Z0-9]/g, "_");
+  const [owner, project] = repo.split("/");
+  return env[`FORK_SYNC_GH_TOKEN_${name(owner)}_${name(project ?? "")}`] || env[`FORK_SYNC_GH_TOKEN_${name(owner)}`] || env.FORK_SYNC_GH_TOKEN || undefined;
 }
 
 /** Pure: validates the repository list. Anything that is not owner/name is dropped and reported. */
@@ -448,7 +454,7 @@ export async function main(argv, env, deps = {}) {
       const gh = ghFor(repo);
       const outcome = gh
         ? await syncOne(repo, { mode, timeoutMs, pollMs: deps.pollMs ?? 30_000, runId: /^\d{1,20}$/.test(args.values["run-id"] ?? "") ? args.values["run-id"] : undefined }, { gh, sleep, now })
-        : { repo, error: `no GitHub token for ${repo.split("/")[0]}: set FORK_SYNC_GH_TOKEN_${repo.split("/")[0].toUpperCase().replace(/[^A-Z0-9]/g, "_")}` };
+        : { repo, error: `no GitHub token for ${repo}: set FORK_SYNC_GH_TOKEN_${repo.toUpperCase().replace(/[^A-Z0-9]/g, "_")} (or the owner-wide FORK_SYNC_GH_TOKEN_<OWNER>)` };
       log(`${repo}: ${outcome.error ? `error: ${outcome.error}` : outcome.result.status}`);
       if (!outcome.error && args.flags.has("skip-up-to-date") && ["up-to-date", "skipped"].includes(outcome.result.status)) {
         return;
