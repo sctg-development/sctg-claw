@@ -36,6 +36,22 @@ forkSyncGithubTokens:                      # un jeton par propriétaire, priorit
 
 Un fork sans jeton utilisable reçoit son propre mail d'erreur ; les autres continuent.
 
+### 1 bis. Jeton de publication (un par fork, dans les secrets GitHub du fork)
+
+Le workflow publie lui-même la branche de synchronisation (l'agent ne pousse plus) : pousser des changements de
+`.github/workflows/` exige une permission `workflows` que le jeton par défaut n'a pas. Créez, **pour chaque fork**,
+un jeton fine-grained limité à ce seul dépôt, avec *Contents*, *Pull requests* et *Workflows* en lecture et écriture,
+à courte durée, et ajoutez-le comme secret de dépôt `FORK_SYNC_PUSH_TOKEN` (Settings → Secrets and variables →
+Actions). Ce n'est pas un secret SOPS : il vit dans GitHub, il n'est jamais dans le pod.
+
+Garde-fous (`publish.sh`, lu depuis la branche par défaut, donc non modifiable par l'agent) : l'agent ne voit jamais
+ce jeton ; il n'est utilisé que si la branche change des fichiers de workflow ; chaque fichier de workflow modifié doit
+être **identique octet pour octet** à celui de l'amont, sinon rien n'est poussé ; les fichiers de l'agent de synchro
+ne peuvent pas changer ; les contrôles se font dans un dépôt neuf (pas de hooks, de configuration ni de références
+piégés) ; la branche est poussée sous son seul nom, sans force ; un dernier commit `[skip ci]` évite que les workflows
+amont s'exécutent avec les secrets avant votre relecture. Sans le secret, une synchro qui touche aux workflows
+s'arrête en `needs-human` (code 4) au lieu de pousser.
+
 ### 2. Le cron
 
 ```bash
