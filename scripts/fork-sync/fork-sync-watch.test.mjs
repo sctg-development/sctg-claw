@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { deflateRawSync } from "node:zlib";
 import test from "node:test";
-import { buildMail, main, normalizeResult, parseRepos, readZipEntry, syncOne, tokenFor } from "./fork-sync-watch.mjs";
+import { buildMail, main, normalizeResult, parseRepos, readZipEntry, reliability, sendMail, syncOne, tokenFor } from "./fork-sync-watch.mjs";
 
 // Minimal zip writer with a central directory and data descriptors-free local headers (sizes in the
 // central directory are what the reader uses, like a GitHub artifact).
@@ -184,4 +184,113 @@ test("main: a repo without a token gets its own error mail, the others still run
   assert.equal(subjects.length, 2);
   assert.ok(subjects.some((s) => /sctg-development\/mistral-vibe : ÉCHEC/.test(s)));
   assert.ok(calls.every((u) => !u.includes("sctg-development")));
+});
+
+// --- reliability score and mail layout --------------------------------------------------------------
+
+const synced = (extra = {}) =>
+  normalizeResult({ status: "synced", branch: "sync/upstream-1", pr_url: "https://github.com/o/r/pull/1", behind: 1, invariants: { passed: 37, failed: 0 }, typecheck: "ruff pass, pyright clean", ...extra });
+
+test("reliability: a clean sync scores 100, and only synced results are rated", () => {
+  assert.equal(reliability(synced()).score, 100);
+  assert.equal(reliability(synced()).label, "Fiable");
+  for (const status of ["failed", "needs-human", "dry-run", "up-to-date", "skipped"]) assert.equal(reliability(normalizeResult({ status })), null);
+});
+
+test("reliability: every deduction is listed and the bands follow the score", () => {
+  const risky = reliability(
+    synced({
+      conflicts: ["a", "b", "c", "d"],
+      review_points: [{ level: "high", title: "t", why: "w", check: "c" }],
+      unverified: ["full suite", "cargo test"],
+    }),
+  );
+  // -12 conflicts, -15 critical point, -8 unverified checks.
+  assert.equal(risky.score, 65);
+  assert.equal(risky.label, "À relire attentivement");
+  assert.deepEqual(risky.deductions.map((d) => d.points), [12, 15, 8]);
+  const failing = reliability(synced({ invariants: { passed: 30, failed: 2 }, typecheck: "pyright failed", conflicts: ["a"] }));
+  assert.equal(failing.label, "Risquée");
+  assert.equal(failing.score, 100 - 40 - 25 - 3);
+});
+
+test("reliability: missing measurements cost points instead of reading as success", () => {
+  const unknown = reliability(normalizeResult({ status: "synced", branch: "b" }));
+  assert.equal(unknown.score, 100 - 20 - 8);
+  assert.equal(reliability(synced({ behind: 150 })).score, 90);
+});
+
+test("reliability: the agent cannot raise its own score", () => {
+  const forged = reliability(synced({ score: 100, reliability: 100, conflicts: ["a", "b", "c"] }));
+  assert.equal(forged.score, 91);
+});
+
+test("normalizeResult: review fields are bounded and cleaned", () => {
+  const r = normalizeResult({
+    status: "synced",
+    review_points: [{ level: "weird", title: "x".repeat(500), why: 5, check: "c" }, { title: "" }, "no", ...Array.from({ length: 30 }, () => ({ title: "t" }))],
+    unverified: [1, "a", "b".repeat(500)],
+    resolutions: [{ file: "f", how: "h" }, { how: "no file" }],
+  });
+  // 12 entries are read, one of them has no title and is dropped.
+  assert.equal(r.reviewPoints.length, 11);
+  assert.equal(r.reviewPoints[0].level, "medium");
+  assert.ok(r.reviewPoints[0].title.length <= 140);
+  assert.equal(r.unverified.length, 3);
+  assert.deepEqual(r.resolutions, [{ file: "f", how: "h" }]);
+});
+
+test("buildMail: gauge, ordered review points and escaped content, in HTML and plain text", () => {
+  const mail = buildMail({
+    repo: "o/r",
+    runUrl: "https://github.com/o/r/actions/runs/7",
+    result: synced({
+      conflicts: ["x.py"],
+      review_points: [
+        { level: "low", title: "Minor", why: "w", check: "c" },
+        { level: "high", title: "403 <b>no longer</b> parks an account", why: "pool behaviour", check: "read the diff" },
+      ],
+      unverified: ["cargo test"],
+      resolutions: [{ file: "x.py", how: "took upstream" }],
+    }),
+  });
+  assert.match(mail.subject, /fiabilité \d+\/100/);
+  assert.ok(mail.html.indexOf("CRITIQUE") < mail.html.indexOf("À NOTER"), "high before low");
+  assert.ok(!mail.html.includes("<b>no longer</b>"), "hostile markup is escaped");
+  assert.match(mail.html, /&lt;b&gt;no longer/);
+  assert.match(mail.text, /FIABILITÉ DE LA PR : \[█+░*\] \d+\/100/);
+  assert.match(mail.text, /1\. \[CRITIQUE\] 403/);
+  assert.match(mail.text, /x\.py : took upstream/);
+  assert.ok(mail.html.includes("Create a merge commit"));
+});
+
+test("buildMail: a result without structured points still shows the agent's notes, and no gauge when not synced", () => {
+  const withNotes = buildMail({ repo: "o/r", result: synced({ notes: "look at the pool" }) });
+  assert.match(withNotes.text, /Notes de l'agent/);
+  const failed = buildMail({ repo: "o/r", result: normalizeResult({ status: "failed", notes: "boom" }) });
+  assert.doesNotMatch(failed.subject, /fiabilité/);
+  assert.doesNotMatch(failed.html, /\/100/);
+});
+
+test("sendMail passes both the HTML and the text body as files, then removes them", async () => {
+  let seen;
+  const spawnFn = (_node, args) => {
+    seen = args;
+    const handlers = {};
+    setImmediate(() => handlers.close?.(0));
+    return { stderr: { on() {} }, on: (event, fn) => (handlers[event] = fn) };
+  };
+  const result = await sendMail({ cli: "cli.js", to: "a@b", account: "c@d", mail: { subject: "s", text: "plain", html: "<p>h</p>" } }, spawnFn);
+  assert.equal(result.ok, true);
+  assert.ok(seen.includes("--html-file") && seen.includes("--text-file"));
+  const { existsSync } = await import("node:fs");
+  assert.equal(existsSync(seen[seen.indexOf("--html-file") + 1]), false);
+});
+
+test("syncOne with a run id re-reports that run without dispatching anything", async () => {
+  const body = JSON.stringify({ status: "synced", branch: "b", pr_url: "https://github.com/o/r/pull/1", behind: 1 });
+  const { gh, calls } = fakeGh({ artifactZip: zip([["fork-sync-result.json", body]]) });
+  const outcome = await syncOne("o/r", { ...OPTS, runId: "7" }, deps(gh));
+  assert.equal(outcome.result.status, "synced");
+  assert.ok(!calls.some((c) => c.startsWith("POST")), "no dispatch");
 });

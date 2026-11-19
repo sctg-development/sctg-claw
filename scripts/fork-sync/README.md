@@ -50,6 +50,29 @@ workflow `fork-sync.yml` est fusionné sur sa branche par défaut : sinon le mai
 Options : `--mode dry-run` (rien n'est modifié), `--skip-up-to-date` (pas de mail quand il n'y a rien à faire),
 `--timeout-min` (180 par défaut), `--dry-mail` (affiche les mails sans les envoyer).
 
+### Le mail : fiabilité et points à vérifier
+
+Chaque mail est envoyé en HTML (avec une version texte) et contient, pour une synchronisation prête :
+
+- une **jauge de fiabilité** de la PR (0 à 100) : *Fiable* (80 et plus), *À relire attentivement* (60 à 79),
+  *Risquée* (moins de 60), avec la liste de chaque point perdu ;
+- **À vérifier avant de fusionner** : les points signalés par l'agent, classés `high` (critique), `medium`
+  (important) et `low` (à noter), chacun avec le pourquoi et la façon de vérifier ;
+- **Non vérifié par l'agent** et **conflits résolus** (un fichier, une phrase) ;
+- les liens (PR, run) et le rappel « Create a merge commit ».
+
+Le score est calculé **par le script**, jamais par l'agent (qui lit du contenu amont non fiable) : il part de 100 et
+perd des points selon les mesures du workflow et ce que l'agent a signalé. Invariants en échec −40, non exécutés
+−20 ; typage ou lint en échec −25, non vérifié −8 ; −3 par fichier en conflit (20 au plus) ; point critique −15
+(30 au plus), important −5 (15 au plus) ; −4 par contrôle non exécuté (12 au plus) ; −10 pour 100 commits amont
+ou plus. Seul un résultat `synced` a un score.
+
+L'agent remplit `review_points`, `unverified` et `resolutions` dans son fichier de résultat : voir le contrat dans
+`.claude/skills/fork-sync/SKILL.md` de chaque fork. Un fork dont la skill est ancienne reçoit quand même un mail
+(score sur les seules mesures, notes de l'agent en texte).
+
+Pour renvoyer le mail d'un run existant, sans relancer l'agent : `--run-id <id>` avec un seul `--repos`.
+
 ### 3. Essai
 
 ```bash
